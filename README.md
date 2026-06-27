@@ -43,10 +43,15 @@ The UI uses direct DOM rendering without a frontend framework. Numerical
 operations stay in `math.ts`, animation and workspace derivation in `state.ts`,
 and Three.js concerns in `scene.ts`.
 
+## LLM disclosure
+
+Mattriz uses LLMs to assist with implementation, analysis, and documentation.
+Human developers review the work and retain responsibility for project
+decisions.
+
 ## Known bugs
 
 - A matrix duration slider can conflict with native drag-reorder behavior in
   some browsers. Drag suppression around the slider reduces the problem but is
   not fully reliable. A dedicated drag handle or pointer-event sorter is the
   likely long-term fix.
-
