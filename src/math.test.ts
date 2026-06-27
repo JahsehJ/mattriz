@@ -62,8 +62,10 @@ describe("animation state", () => {
     const state = createInitialState();
     expect(state.workspaces[2].matrices[0].values).toEqual([1, 0, 0, 1]);
     expect(state.workspaces[2].vectors[0].components).toEqual([1, 1]);
+    expect(state.workspaces[2].appliedTransform).toEqual([1, 0, 0, 1]);
     expect(state.workspaces[3].matrices[0].values).toEqual([1, 0, 0, 0, 1, 0, 0, 0, 1]);
     expect(state.workspaces[3].vectors[0].components).toEqual([1, 1, 1]);
+    expect(state.workspaces[3].appliedTransform).toEqual([1, 0, 0, 0, 1, 0, 0, 0, 1]);
   });
 
   it("creates custom vectors away from the basis axes", () => {
