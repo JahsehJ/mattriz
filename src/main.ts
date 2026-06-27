@@ -866,12 +866,12 @@ function createVectorDragPreview(vectorId: string): HTMLElement {
     </div>
     <div class="vector-drag-preview-values" style="grid-template-columns:54px">
       ${vector.draftComponents
-				.slice(0, workspace.dimension)
-				.map(
-					(component) =>
-						`<output class="vector-drag-preview-cell">${escapeHtml(component)}</output>`
-				)
-				.join("")}
+			.slice(0, workspace.dimension)
+			.map(
+				(component) =>
+					`<output class="vector-drag-preview-cell">${escapeHtml(component)}</output>`
+			)
+			.join("")}
     </div>
   `;
 	return preview;
@@ -984,7 +984,11 @@ function updateResultOutputs(): void {
 	const workspace = getWorkspace(state);
 	const totalTransform = getTotalTransform(workspace);
 	workspace.vectors.forEach((vector, vectorIndex) => {
-		const transformed = applyMatrixToVector(workspace.dimension, totalTransform, vector.components);
+		const transformed = applyMatrixToVector(
+			workspace.dimension,
+			totalTransform,
+			vector.components
+		);
 		for (let componentIndex = 0; componentIndex < workspace.dimension; componentIndex += 1) {
 			const output = stackElement.querySelector<HTMLOutputElement>(
 				`output[data-result-vector-index="${vectorIndex}"][data-result-component-index="${componentIndex}"]`

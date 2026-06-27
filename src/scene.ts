@@ -72,7 +72,11 @@ export class MatrixScene {
 		this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 		this.renderer.setClearColor(0x101416, 1);
 
-		this.root.add(this.gridGroup, this.axisLabels, ...this.basisArrows.map((arrow) => arrow.group));
+		this.root.add(
+			this.gridGroup,
+			this.axisLabels,
+			...this.basisArrows.map((arrow) => arrow.group)
+		);
 		this.gridGroup.add(this.gridPlanes.xy, this.gridPlanes.xz, this.gridPlanes.yz);
 		this.scene.add(this.root);
 		this.scene.add(new THREE.AmbientLight(0xffffff, 0.55));
@@ -310,7 +314,12 @@ export class MatrixScene {
 		return { group, shaft, head, basicMaterial, lambertMaterial };
 	}
 
-	private updateArrow(arrow: ArrowVisual, target: Vec3, dimension: Dimension, zLift: number): void {
+	private updateArrow(
+		arrow: ArrowVisual,
+		target: Vec3,
+		dimension: Dimension,
+		zLift: number
+	): void {
 		const end = toThree(target);
 		const length = end.length();
 		arrow.group.visible = length >= 0.001;
@@ -352,7 +361,11 @@ function createGridPlane(plane: "xy" | "xz" | "yz"): THREE.Group {
 		),
 		new THREE.LineSegments(
 			createGridGeometry(plane, true),
-			new THREE.LineBasicMaterial({ color: GRID_CENTER_COLOR, transparent: true, opacity: 0.72 })
+			new THREE.LineBasicMaterial({
+				color: GRID_CENTER_COLOR,
+				transparent: true,
+				opacity: 0.72
+			})
 		)
 	);
 	return group;
