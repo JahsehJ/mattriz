@@ -57,6 +57,8 @@ The grid is persistent geometry rather than dense line buffers recreated per fra
 
 OrbitControls provide rotate, pan, and zoom in 3D. In 2D, left drag pans and wheel or pinch gestures zoom. Only the controls for the active dimension are enabled.
 
+Three-dimensional calculations and scene geometry use the same right-handed `(x, y, z)` coordinates without conversion. The perspective camera uses Z-up, while the orthographic camera retains Y-up to view the XY plane. Do not change `THREE.Object3D.DEFAULT_UP` globally without accounting for both cameras. The invariants and rationale are documented in `docs/coordinate-systems.md`.
+
 ## Known bug
 
 Matrix duration sliders can conflict with native HTML drag/drop in some browsers. The existing hover and pointer suppression is not fully reliable. The likely structural fixes are a dedicated matrix drag handle or replacement of native drag/drop with pointer-event sorting; additional small suppression patches have not resolved the underlying interaction.

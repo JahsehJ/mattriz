@@ -43,6 +43,11 @@ The UI uses direct DOM rendering without a frontend framework. Numerical
 operations stay in `math.ts`, animation and workspace derivation in `state.ts`,
 and Three.js concerns in `scene.ts`.
 
+Three-dimensional math and scene geometry share conventional right-handed
+`(x, y, z)` coordinates. The 3D camera uses Z-up while the 2D camera views the
+XY plane with Y-up. See [Coordinate systems](docs/coordinate-systems.md) for
+the rendering convention.
+
 ## LLM disclosure
 
 Mattriz uses LLMs to assist with implementation, analysis, and documentation.
