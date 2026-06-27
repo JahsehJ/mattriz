@@ -261,7 +261,7 @@ stackElement.addEventListener("dragend", () => {
 
 function addMatrix(): void {
   const workspace = getWorkspace(state);
-  workspace.matrices.unshift(createMatrixNode(workspace.dimension, nextMatrixLabel(workspace.matrices.length)));
+  workspace.matrices.unshift(createMatrixNode(workspace.dimension, nextMatrixLabel(workspace.matrices.map((matrix) => matrix.label))));
   resetAnimation();
   renderUi();
 }
@@ -269,7 +269,7 @@ function addMatrix(): void {
 function addVector(): void {
   const workspace = getWorkspace(state);
   const color = vectorColors[workspace.vectors.length % vectorColors.length];
-  workspace.vectors.push(createVectorNode(workspace.dimension, nextVectorLabel(workspace.vectors.length), color));
+  workspace.vectors.push(createVectorNode(workspace.dimension, nextVectorLabel(workspace.vectors.map((vector) => vector.label)), color));
   resetAnimation(false);
   renderUi();
 }
@@ -835,12 +835,31 @@ function getDragOffsetY(element: HTMLElement, event: DragEvent, preview: HTMLEle
   return Math.max(0, Math.min(previewRect.height, y));
 }
 
-function nextMatrixLabel(index: number): string {
-  return String.fromCharCode(65 + (index % 26));
+function nextMatrixLabel(existingLabels: string[]): string {
+  const labels = new Set(existingLabels);
+  for (let index = 0; ; index += 1) {
+    const label = alphabeticLabel(index);
+    if (!labels.has(label)) return label;
+  }
 }
 
-function nextVectorLabel(index: number): string {
-  return `v${index + 1}`;
+function nextVectorLabel(existingLabels: string[]): string {
+  const labels = new Set(existingLabels);
+  for (let index = 1; ; index += 1) {
+    const label = `v${index}`;
+    if (!labels.has(label)) return label;
+  }
+}
+
+function alphabeticLabel(index: number): string {
+  let value = index + 1;
+  let label = "";
+  while (value > 0) {
+    value -= 1;
+    label = String.fromCharCode(65 + (value % 26)) + label;
+    value = Math.floor(value / 26);
+  }
+  return label;
 }
 
 function escapeHtml(value: string): string {
