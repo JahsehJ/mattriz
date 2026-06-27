@@ -12,6 +12,8 @@ const BASIS_COLORS = [0xff4d43, 0x43d675, 0x5298ff];
 const ARROW_SHAFT_RADIUS = 0.03;
 const BASIS_ARROW_Z = 0.035;
 const USER_ARROW_Z = 0.055;
+const AXIS_LABEL_DISTANCE = 1.24;
+const AXIS_LABEL_SIZE = 0.34;
 
 export class MatrixScene {
   private readonly renderer: THREE.WebGLRenderer;
@@ -26,6 +28,7 @@ export class MatrixScene {
     xz: createGridPlane("xz"),
     yz: createGridPlane("yz")
   };
+  private readonly axisLabels = createAxisLabels();
   private readonly root = new THREE.Group();
   private dimension: Dimension = 3;
   private activeControlsDimension: Dimension = 3;
@@ -37,7 +40,7 @@ export class MatrixScene {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setClearColor(0x101416, 1);
 
-    this.root.add(this.gridGroup);
+    this.root.add(this.gridGroup, this.axisLabels);
     this.gridGroup.add(this.gridPlanes.xy, this.gridPlanes.xz, this.gridPlanes.yz);
     this.scene.add(this.root);
     this.scene.add(new THREE.AmbientLight(0xffffff, 0.55));
@@ -105,6 +108,7 @@ export class MatrixScene {
     this.dimension = state.dimension;
     this.updateGrid(state.dimension, state.transform);
     this.clearDynamicObjects();
+    this.updateAxisLabels(state.dimension, state.transform);
     if (state.showBasis) this.drawBasis(state.dimension, state.transform);
     this.drawVectors(state.dimension, state.transform, state.vectors);
     this.updateControls(state.dimension);
@@ -157,12 +161,35 @@ export class MatrixScene {
   }
 
   private clearDynamicObjects(): void {
-    const keep = new Set<THREE.Object3D>([this.gridGroup]);
+    const keep = new Set<THREE.Object3D>([this.gridGroup, this.axisLabels]);
     for (const child of [...this.root.children]) {
       if (keep.has(child)) continue;
       this.root.remove(child);
       disposeObject(child);
     }
+  }
+
+  private updateAxisLabels(dimension: Dimension, matrix: MatrixValues): void {
+    const axes: Vec3[] = [
+      [1, 0, 0],
+      [0, 1, 0],
+      [0, 0, 1]
+    ];
+
+    this.axisLabels.children.forEach((label, index) => {
+      label.visible = index < dimension;
+      if (!label.visible) return;
+
+      const endpoint = toThree(transformPoint(dimension, matrix, axes[index]));
+      if (endpoint.lengthSq() < 0.000001) {
+        label.visible = false;
+        return;
+      }
+
+      endpoint.multiplyScalar(AXIS_LABEL_DISTANCE);
+      if (dimension === 2) endpoint.z = USER_ARROW_Z + 0.02;
+      label.position.copy(endpoint);
+    });
   }
 
   private drawBasis(dimension: Dimension, matrix: MatrixValues): void {
@@ -245,6 +272,38 @@ function createGridPlane(plane: "xy" | "xz" | "yz"): THREE.Group {
       new THREE.LineBasicMaterial({ color: GRID_CENTER_COLOR, transparent: true, opacity: 0.72 })
     )
   );
+  return group;
+}
+
+function createAxisLabels(): THREE.Group {
+  const group = new THREE.Group();
+  ["x", "y", "z"].forEach((axis, index) => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 128;
+    canvas.height = 128;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+
+    context.font = "700 76px Inter, system-ui, sans-serif";
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.lineWidth = 10;
+    context.strokeStyle = "rgba(16, 20, 22, 0.92)";
+    context.strokeText(axis, 64, 64);
+    context.fillStyle = `#${BASIS_COLORS[index].toString(16).padStart(6, "0")}`;
+    context.fillText(axis, 64, 64);
+
+    const material = new THREE.SpriteMaterial({
+      map: new THREE.CanvasTexture(canvas),
+      depthTest: false,
+      transparent: true,
+      toneMapped: false
+    });
+    const label = new THREE.Sprite(material);
+    label.scale.setScalar(AXIS_LABEL_SIZE);
+    label.renderOrder = 3;
+    group.add(label);
+  });
   return group;
 }
 
