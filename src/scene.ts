@@ -14,6 +14,8 @@ const BASIS_ARROW_Z = 0.035;
 const USER_ARROW_Z = 0.055;
 const AXIS_LABEL_DISTANCE = 1.24;
 const AXIS_LABEL_SIZE = 0.34;
+const VECTOR_LABEL_DISTANCE = 1.12;
+const VECTOR_LABEL_SIZE = 0.34;
 const DEFAULT_3D_CAMERA_POSITION: Vec3 = [7, 7, 7];
 
 export class MatrixScene {
@@ -210,12 +212,26 @@ export class MatrixScene {
   private drawVectors(
     dimension: Dimension,
     matrix: MatrixValues,
-    vectors: { components: VectorValues; color: string }[]
+    vectors: { components: VectorValues; color: string; label: string }[]
   ): void {
     vectors.forEach((vector) => {
       const transformed = applyMatrixToVector(dimension, matrix, vector.components);
-      this.addArrow(transformed, new THREE.Color(vector.color).getHex(), USER_ARROW_Z, 1);
+      const color = new THREE.Color(vector.color).getHex();
+      this.addArrow(transformed, color, USER_ARROW_Z, 1);
+      this.addVectorLabel(dimension, transformed, vector.label, color);
     });
+  }
+
+  private addVectorLabel(dimension: Dimension, target: Vec3, text: string, color: number): void {
+    const endpoint = toThree(target);
+    if (endpoint.lengthSq() < 0.000001) return;
+
+    endpoint.multiplyScalar(VECTOR_LABEL_DISTANCE);
+    if (dimension === 2) endpoint.z = USER_ARROW_Z + 0.02;
+
+    const label = createTextLabel(text, color, VECTOR_LABEL_SIZE);
+    label.position.copy(endpoint);
+    this.root.add(label);
   }
 
   private addArrow(target: Vec3, color: number, zLift: number, depthBias: number): void {
@@ -282,33 +298,38 @@ function createGridPlane(plane: "xy" | "xz" | "yz"): THREE.Group {
 function createAxisLabels(): THREE.Group {
   const group = new THREE.Group();
   ["x", "y", "z"].forEach((axis, index) => {
-    const canvas = document.createElement("canvas");
-    canvas.width = 128;
-    canvas.height = 128;
-    const context = canvas.getContext("2d");
-    if (!context) return;
+    group.add(createTextLabel(axis, BASIS_COLORS[index], AXIS_LABEL_SIZE));
+  });
+  return group;
+}
 
+function createTextLabel(text: string, color: number, size: number): THREE.Sprite {
+  const canvas = document.createElement("canvas");
+  canvas.width = 256;
+  canvas.height = 128;
+  const context = canvas.getContext("2d");
+
+  if (context) {
     context.font = "700 76px Inter, system-ui, sans-serif";
     context.textAlign = "center";
     context.textBaseline = "middle";
     context.lineWidth = 10;
     context.strokeStyle = "rgba(16, 20, 22, 0.92)";
-    context.strokeText(axis, 64, 64);
-    context.fillStyle = `#${BASIS_COLORS[index].toString(16).padStart(6, "0")}`;
-    context.fillText(axis, 64, 64);
+    context.strokeText(text, 128, 64);
+    context.fillStyle = `#${color.toString(16).padStart(6, "0")}`;
+    context.fillText(text, 128, 64);
+  }
 
-    const material = new THREE.SpriteMaterial({
-      map: new THREE.CanvasTexture(canvas),
-      depthTest: false,
-      transparent: true,
-      toneMapped: false
-    });
-    const label = new THREE.Sprite(material);
-    label.scale.setScalar(AXIS_LABEL_SIZE);
-    label.renderOrder = 3;
-    group.add(label);
+  const material = new THREE.SpriteMaterial({
+    map: new THREE.CanvasTexture(canvas),
+    depthTest: false,
+    transparent: true,
+    toneMapped: false
   });
-  return group;
+  const label = new THREE.Sprite(material);
+  label.scale.set(size * 2, size, 1);
+  label.renderOrder = 3;
+  return label;
 }
 
 function createGridGeometry(plane: "xy" | "xz" | "yz", center: boolean): THREE.BufferGeometry {
@@ -365,6 +386,10 @@ function disposeObject(object: THREE.Object3D): void {
     if (child instanceof THREE.Mesh || child instanceof THREE.LineSegments) {
       child.geometry.dispose();
       disposeMaterial(child.material);
+    }
+    if (child instanceof THREE.Sprite) {
+      child.material.map?.dispose();
+      child.material.dispose();
     }
   });
 }
