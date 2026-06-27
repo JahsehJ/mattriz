@@ -10,7 +10,8 @@ The current scope is 2D and 3D linear transformations:
 
 - 2D uses 2x2 matrices, vectors lifted to `z = 0`, and a top-down orthographic camera.
 - 3D uses 3x3 matrices and a perspective camera.
-- Initial matrix and vector stacks are empty, leaving the grid untransformed.
+- Each workspace starts with one identity matrix and one all-ones custom vector,
+  leaving the grid untransformed while presenting an immediately editable example.
 - Translation, nonlinear transforms, persistence, and custom easing are outside the current scope.
 
 ## Interface model
