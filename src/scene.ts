@@ -14,6 +14,7 @@ const BASIS_ARROW_Z = 0.035;
 const USER_ARROW_Z = 0.055;
 const AXIS_LABEL_DISTANCE = 1.24;
 const AXIS_LABEL_SIZE = 0.34;
+const DEFAULT_3D_CAMERA_POSITION: Vec3 = [7, 7, 7];
 
 export class MatrixScene {
   private readonly renderer: THREE.WebGLRenderer;
@@ -48,7 +49,10 @@ export class MatrixScene {
     arrowLight.position.set(4, 7, 6);
     this.scene.add(arrowLight);
 
-    this.perspectiveCamera.position.set(7, 6, 7);
+    // Three.js geometry is coordinate-agnostic. A camera-specific up vector
+    // gives 3D a mathematical Z-up view without converting any scene data.
+    this.perspectiveCamera.up.set(0, 0, 1);
+    this.perspectiveCamera.position.fromArray(DEFAULT_3D_CAMERA_POSITION);
     this.perspectiveCamera.lookAt(0, 0, 0);
     this.orthoCamera.position.set(0, 0, 10);
     this.orthoCamera.lookAt(0, 0, 0);
@@ -95,7 +99,7 @@ export class MatrixScene {
       return;
     }
 
-    this.perspectiveCamera.position.set(7, 6, 7);
+    this.perspectiveCamera.position.fromArray(DEFAULT_3D_CAMERA_POSITION);
     this.perspectiveCamera.zoom = 1;
     this.perspectiveCamera.lookAt(0, 0, 0);
     this.perspectiveCamera.updateProjectionMatrix();
