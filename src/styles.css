@@ -369,11 +369,18 @@ kbd {
 
 .about-links {
 	display: flex;
-	flex-wrap: wrap;
-	gap: 8px 20px;
+	align-items: flex-end;
+	justify-content: space-between;
+	gap: 12px 24px;
 	padding: 18px 24px 22px;
 	border-top: 1px solid #2b4046;
 	background: #101719;
+}
+
+.about-link-list {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px 20px;
 }
 
 .about-links a {
@@ -385,6 +392,13 @@ kbd {
 .about-links a:hover {
 	color: #aaf0df;
 	text-decoration: underline;
+}
+
+.about-version {
+	flex: none;
+	color: #627577;
+	font-size: 0.7rem;
+	letter-spacing: 0.04em;
 }
 
 .animation-block {

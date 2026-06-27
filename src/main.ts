@@ -1,4 +1,5 @@
 import "./styles.css";
+import packageJson from "../package.json";
 import { MatrixScene } from "./scene";
 import {
 	AppState,
@@ -22,6 +23,7 @@ import {
 import { Locale, MessageKey, translate } from "./i18n";
 
 const state: AppState = createInitialState();
+const appVersion = packageJson.version;
 let locale: Locale = "en";
 const t = (key: MessageKey, values?: Record<string, string | number>): string =>
 	translate(locale, key, values);
@@ -132,9 +134,12 @@ root.innerHTML = `
         </dl>
       </section>
       <footer class="about-links" aria-label="${t("projectLinks")}" data-i18n-aria="projectLinks">
-        <a href="https://github.com/JahsehJ/mattriz" target="_blank" rel="noreferrer">GitHub</a>
-        <a href="https://codeberg.org/JahsehJ/mattriz" target="_blank" rel="noreferrer">Codeberg</a>
-        <a href="https://jahsehjaeger.com" target="_blank" rel="noreferrer">jahsehjaeger.com</a>
+        <div class="about-link-list">
+          <a href="https://github.com/JahsehJ/mattriz" target="_blank" rel="noreferrer">GitHub</a>
+          <a href="https://codeberg.org/JahsehJ/mattriz" target="_blank" rel="noreferrer">Codeberg</a>
+          <a href="https://jahsehjaeger.com" target="_blank" rel="noreferrer">jahsehjaeger.com</a>
+        </div>
+        <small class="about-version">v${appVersion}</small>
       </footer>
     </dialog>
   </main>
