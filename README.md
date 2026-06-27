@@ -46,13 +46,6 @@ and Three.js concerns in `scene.ts`.
 Scene geometry uses mathematical coordinates directly. The 3D camera is Z-up;
 the 2D camera views the XY plane with Y-up.
 
-## Known bugs
-
-- A matrix duration slider can conflict with native drag-reorder behavior in
-  some browsers. Drag suppression around the slider reduces the problem but is
-  not fully reliable. A dedicated drag handle or pointer-event sorter is the
-  likely long-term fix.
-
 ## LLM disclosure
 
 Mattriz uses LLMs to assist with implementation, analysis, and documentation.

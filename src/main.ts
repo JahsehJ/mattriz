@@ -28,7 +28,7 @@ let dragState: DragState | null = null;
 let draggedElement: HTMLElement | null = null;
 let draggedPreviewElement: HTMLElement | null = null;
 let dropIndicatorElement: HTMLElement | null = null;
-let suppressedDragElement: HTMLElement | null = null;
+let isInteractingWithInput = false;
 const vectorColors = ["#f4b740", "#5bd8a6", "#ef6f6c", "#8fb4ff", "#d989ff", "#5ed5e8"];
 
 const app = document.querySelector<HTMLDivElement>("#app");
@@ -167,18 +167,7 @@ aboutDialog.addEventListener("click", (event) => {
 });
 
 root.addEventListener("input", (event) => {
-  const target = event.target as HTMLElement;
-  if (target instanceof HTMLInputElement && target.dataset.matrixId && target.dataset.entryIndex) {
-    updateMatrixEntry(target.dataset.matrixId, Number(target.dataset.entryIndex), target.value);
-  }
-
-  if (target instanceof HTMLInputElement && target.dataset.durationId) {
-    updateDuration(target.dataset.durationId, Number(target.value));
-  }
-
-  if (target instanceof HTMLInputElement && target.dataset.vectorId && target.dataset.componentIndex) {
-    updateVectorComponent(target.dataset.vectorId, Number(target.dataset.componentIndex), target.value);
-  }
+  if (event.target instanceof HTMLInputElement) handleInput(event.target);
 });
 
 animationModeElement.addEventListener("change", () => {
@@ -201,40 +190,27 @@ root.addEventListener("change", (event) => {
   }
 });
 
-stackElement.addEventListener(
-  "pointerover",
-  (event) => {
-    const target = event.target as HTMLElement;
-    if (!target.closest("input[type='range'][data-duration-id]")) return;
-    suppressNearestDraggable(target);
-  },
-  { capture: true }
-);
+stackElement.addEventListener("pointerdown", (event) => {
+  const target = event.target as HTMLElement;
+  if (target.closest("input")) {
+    isInteractingWithInput = true;
+  }
+});
 
-stackElement.addEventListener(
-  "pointerout",
-  (event) => {
-    const target = event.target as HTMLElement;
-    if (!target.closest("input[type='range'][data-duration-id]")) return;
-    restoreSuppressedDrag();
-  },
-  { capture: true }
-);
+window.addEventListener("pointerup", () => {
+  isInteractingWithInput = false;
+});
 
-stackElement.addEventListener(
-  "pointerdown",
-  (event) => {
-    const target = event.target as HTMLElement;
-    if (!target.closest("input[type='range'][data-duration-id]")) return;
-    suppressNearestDraggable(target);
-  },
-  { capture: true }
-);
-
-window.addEventListener("pointerup", restoreSuppressedDrag);
-window.addEventListener("pointercancel", restoreSuppressedDrag);
+window.addEventListener("pointercancel", () => {
+  isInteractingWithInput = false;
+});
 
 stackElement.addEventListener("dragstart", (event) => {
+  if (isInteractingWithInput) {
+    event.preventDefault();
+    return;
+  }
+
   const target = event.target as HTMLElement;
   if (target.closest("input, button, select, textarea")) {
     event.preventDefault();
@@ -337,45 +313,85 @@ function moveItem<T extends SortableNode>(items: T[], id: string, targetId: stri
   return true;
 }
 
+function handleInput(input: HTMLInputElement): void {
+  if (input.dataset.durationId) {
+    updateDuration(input.dataset.durationId, Number(input.value));
+    return;
+  }
+  if (input.dataset.matrixId && input.dataset.entryIndex !== undefined) {
+    updateMatrixEntry(input.dataset.matrixId, Number(input.dataset.entryIndex), input.value);
+    return;
+  }
+  if (input.dataset.vectorId && input.dataset.componentIndex !== undefined) {
+    updateVectorComponent(input.dataset.vectorId, Number(input.dataset.componentIndex), input.value);
+  }
+}
+
 function updateMatrixEntry(id: string, entryIndex: number, value: string): void {
   const matrix = getWorkspace(state).matrices.find((item) => item.id === id);
   if (!matrix) return;
 
-  matrix.draftValues[entryIndex] = value;
-  const entryCount = getWorkspace(state).dimension ** 2;
-  const parsed = matrix.draftValues.slice(0, entryCount).map(parseFiniteNumber);
-  const inputs = stackElement.querySelectorAll<HTMLInputElement>(`input[data-matrix-id="${id}"]`);
-  inputs.forEach((input, index) => input.toggleAttribute("aria-invalid", parsed[index] === null));
-
-  if (parsed.every((entry): entry is number => entry !== null)) {
-    matrix.values = parsed as MatrixNode["values"];
-    resetAnimation(false);
-    updateResultOutputs();
-  }
+  updateNumericDraft({
+    draft: matrix.draftValues,
+    index: entryIndex,
+    value,
+    count: getWorkspace(state).dimension ** 2,
+    inputSelector: `input[data-matrix-id="${cssEscape(id)}"]`,
+    commit: (values) => {
+      matrix.values = values as MatrixNode["values"];
+    }
+  });
 }
 
 function updateDuration(id: string, value: number): void {
   const matrix = getWorkspace(state).matrices.find((item) => item.id === id);
   if (!matrix || !Number.isFinite(value)) return;
-  matrix.durationMs = Math.max(100, Math.min(5000, value));
+  matrix.durationMs = Math.max(100, Math.min(3000, value));
   resetAnimation(false);
-  renderUi();
+  const output = stackElement.querySelector<HTMLElement>(`[data-duration-output="${cssEscape(id)}"]`);
+  if (output) output.textContent = `${matrix.durationMs}ms`;
 }
 
 function updateVectorComponent(id: string, componentIndex: number, value: string): void {
   const vector = getWorkspace(state).vectors.find((item) => item.id === id);
   if (!vector) return;
 
-  vector.draftComponents[componentIndex] = value;
-  const parsed = vector.draftComponents.slice(0, getWorkspace(state).dimension).map(parseFiniteNumber);
-  const inputs = stackElement.querySelectorAll<HTMLInputElement>(`input[data-vector-id="${id}"]`);
-  inputs.forEach((input, index) => input.toggleAttribute("aria-invalid", parsed[index] === null));
+  updateNumericDraft({
+    draft: vector.draftComponents,
+    index: componentIndex,
+    value,
+    count: getWorkspace(state).dimension,
+    inputSelector: `input[data-vector-id="${cssEscape(id)}"]`,
+    commit: (values) => {
+      vector.components = values as VectorValues;
+    }
+  });
+}
 
-  if (parsed.every((entry): entry is number => entry !== null)) {
-    vector.components = parsed as VectorValues;
-    resetAnimation(false);
-    updateResultOutputs();
-  }
+function updateNumericDraft({
+  draft,
+  index,
+  value,
+  count,
+  inputSelector,
+  commit
+}: {
+  draft: string[];
+  index: number;
+  value: string;
+  count: number;
+  inputSelector: string;
+  commit: (values: number[]) => void;
+}): void {
+  draft[index] = value;
+  const parsed = draft.slice(0, count).map(parseFiniteNumber);
+  const inputs = stackElement.querySelectorAll<HTMLInputElement>(inputSelector);
+  inputs.forEach((input, inputIndex) => input.toggleAttribute("aria-invalid", parsed[inputIndex] === null));
+
+  if (!parsed.every((entry): entry is number => entry !== null)) return;
+  commit(parsed);
+  resetAnimation(false);
+  updateResultOutputs();
 }
 
 function togglePlayback(): void {
@@ -399,7 +415,10 @@ function resetAnimation(shouldRender = true): void {
   state.animation.startedAt = 0;
   state.animation.pausedAt = 0;
   if (shouldRender) renderUi();
-  else updateAnimationHighlight(performance.now());
+  else {
+    updatePlaybackControl();
+    updateAnimationHighlight(performance.now());
+  }
 }
 
 function resetTransform(): void {
@@ -429,6 +448,16 @@ function renderUi(): void {
     button.toggleAttribute("aria-pressed", Number(button.dataset.dimension) === state.activeDimension);
   });
 
+  updatePlaybackControl();
+  const basisCheckbox = root.querySelector<HTMLInputElement>("[data-action='toggle-basis']");
+  if (basisCheckbox) basisCheckbox.checked = state.showBasis;
+  animationModeElement.value = state.animation.mode;
+
+  stackElement.innerHTML = renderEquation();
+  updateAnimationHighlight(performance.now());
+}
+
+function updatePlaybackControl(): void {
   const playButton = root.querySelector<HTMLButtonElement>("[data-action='play']");
   if (playButton) {
     const playbackTextKey: MessageKey =
@@ -443,12 +472,6 @@ function renderUi(): void {
     playButton.setAttribute("aria-label", t(playbackLabelKey));
     playButton.dataset.playbackStatus = state.animation.status;
   }
-  const basisCheckbox = root.querySelector<HTMLInputElement>("[data-action='toggle-basis']");
-  if (basisCheckbox) basisCheckbox.checked = state.showBasis;
-  animationModeElement.value = state.animation.mode;
-
-  stackElement.innerHTML = renderEquation();
-  updateAnimationHighlight(performance.now());
 }
 
 function renderEquation(): string {
@@ -538,7 +561,7 @@ function renderMatrixCard(matrix: MatrixNode): string {
           </div>
         </div>
         <label class="duration-row" for="${durationName}">
-          <span>${matrix.durationMs}ms</span>
+          <span data-duration-output="${matrix.id}">${matrix.durationMs}ms</span>
           <input id="${durationName}" name="${durationName}" type="range" min="100" max="3000" step="100" value="${matrix.durationMs}" data-duration-id="${matrix.id}" aria-label="${t("matrixDuration", { label: matrix.label })}" />
         </label>
       </article>
@@ -715,17 +738,6 @@ function clearDropIndicator(): void {
   if (!dropIndicatorElement) return;
   delete dropIndicatorElement.dataset.dropPosition;
   dropIndicatorElement = null;
-}
-
-function suppressNearestDraggable(target: HTMLElement): void {
-  if (suppressedDragElement) return;
-  suppressedDragElement = target.closest<HTMLElement>("[draggable='true']");
-  suppressedDragElement?.setAttribute("draggable", "false");
-}
-
-function restoreSuppressedDrag(): void {
-  suppressedDragElement?.setAttribute("draggable", "true");
-  suppressedDragElement = null;
 }
 
 function setDraggingElement(element: HTMLElement | null, event: DragEvent): void {

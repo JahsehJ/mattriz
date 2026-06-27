@@ -19,6 +19,8 @@ The visualizer occupies the primary viewport, with controls concentrated in a bo
 
 Large regions use semantic elements such as `main`, `section`, and `footer`; repeated matrix entries use an ordered list. Control dimensions are stable across editing and animation states to limit layout movement.
 
+Duration slider input updates its state and visible value in place. It must not rebuild the equation tray because replacing the active range input interrupts its native pointer interaction. Native drag start is suppressed for the duration of any input pointer gesture so the draggable matrix does not take over slider adjustment or text selection.
+
 The visual language is based on a restrained mathematical scene: persistent grid lines, distinct axes, basis vectors, custom vectors, and limited surrounding UI. MathML represents read-only equation structure, while editable cells are HTML inputs.
 
 ## Data and animation model
@@ -58,10 +60,6 @@ The grid is persistent geometry rather than dense line buffers recreated per fra
 OrbitControls provide rotate, pan, and zoom in 3D. In 2D, left drag pans and wheel or pinch gestures zoom. Only the controls for the active dimension are enabled.
 
 Scene geometry uses mathematical coordinates without conversion. The perspective camera is Z-up, while the orthographic camera remains Y-up to view the XY plane; do not set `THREE.Object3D.DEFAULT_UP` globally.
-
-## Known bug
-
-Matrix duration sliders can conflict with native HTML drag/drop in some browsers. The existing hover and pointer suppression is not fully reliable. The likely structural fixes are a dedicated matrix drag handle or replacement of native drag/drop with pointer-event sorting; additional small suppression patches have not resolved the underlying interaction.
 
 ## Dependencies and verification
 
