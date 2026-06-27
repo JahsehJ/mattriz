@@ -3,6 +3,8 @@
 Mattriz is an educational Three.js visualizer for 2D and 3D linear
 transformations.
 
+Current release: **1.0.0**
+
 ## Features
 
 - 2x2 and 3x3 matrix workspaces.
@@ -35,6 +37,8 @@ src/
 	state.ts      workspace state, animation state, and render-state derivation
 	math.ts       typed matrix/vector operations and input parsing
 	math.test.ts  matrix, composition, validation, and animation tests
+	i18n.ts       English and Traditional Chinese interface messages
+	i18n.test.ts  translation and interpolation tests
 	styles.css    layout and visual styling
 vite.config.ts    build configuration and Three.js vendor chunking
 ```
