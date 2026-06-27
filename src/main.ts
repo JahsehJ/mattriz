@@ -148,7 +148,6 @@ root.addEventListener("click", (event) => {
   if (dimensionButton) {
     state.activeDimension = Number(dimensionButton.dataset.dimension) as Dimension;
     resetAnimation();
-    renderUi();
   }
 
   if (!actionButton) return;
@@ -188,7 +187,7 @@ root.addEventListener("change", (event) => {
   }
   if (target instanceof HTMLInputElement && target.dataset.action === "toggle-basis") {
     state.showBasis = target.checked;
-    renderUi();
+    renderUi(false);
   }
 });
 
@@ -263,41 +262,35 @@ function addMatrix(): void {
   const workspace = getWorkspace(state);
   workspace.matrices.unshift(createMatrixNode(workspace.dimension, nextMatrixLabel(workspace.matrices.map((matrix) => matrix.label))));
   resetAnimation();
-  renderUi();
 }
 
 function addVector(): void {
   const workspace = getWorkspace(state);
   const color = vectorColors[workspace.vectors.length % vectorColors.length];
   workspace.vectors.push(createVectorNode(workspace.dimension, nextVectorLabel(workspace.vectors.map((vector) => vector.label)), color));
-  resetAnimation(false);
-  renderUi();
+  resetAnimation();
 }
 
 function deleteMatrix(id: string): void {
   const workspace = getWorkspace(state);
   workspace.matrices = workspace.matrices.filter((matrix) => matrix.id !== id);
   resetAnimation();
-  renderUi();
 }
 
 function deleteVector(id: string): void {
   const workspace = getWorkspace(state);
   workspace.vectors = workspace.vectors.filter((vector) => vector.id !== id);
-  resetAnimation(false);
-  renderUi();
+  resetAnimation();
 }
 
 function moveMatrix(id: string, targetId: string, side: DropSide): void {
   if (!moveItem(getWorkspace(state).matrices, id, targetId, side)) return;
   resetAnimation();
-  renderUi();
 }
 
 function moveVector(id: string, targetId: string, side: DropSide): void {
   if (!moveItem(getWorkspace(state).vectors, id, targetId, side)) return;
-  resetAnimation(false);
-  renderUi();
+  resetAnimation();
 }
 
 function moveItem<T extends SortableNode>(items: T[], id: string, targetId: string, side: DropSide): boolean {
@@ -409,23 +402,19 @@ function togglePlayback(): void {
     state.animation.startedAt = now;
     state.animation.pausedAt = 0;
   }
-  renderUi();
+  renderUi(false);
 }
 
-function resetAnimation(shouldRender = true): void {
+function resetAnimation(renderStack = true): void {
   state.animation.status = "idle";
   state.animation.startedAt = 0;
   state.animation.pausedAt = 0;
-  if (shouldRender) renderUi();
-  else {
-    updatePlaybackControl();
-    updateAnimationHighlight(performance.now());
-  }
+  renderUi(renderStack);
 }
 
 function resetTransform(): void {
   getWorkspace(state).appliedTransform = identityMatrix(state.activeDimension);
-  resetAnimation();
+  resetAnimation(false);
 }
 
 function resetView(): void {
@@ -444,8 +433,7 @@ function localizeStaticUi(): void {
   });
 }
 
-function renderUi(): void {
-  const workspace = getWorkspace(state);
+function renderUi(renderStack = true): void {
   root.querySelectorAll<HTMLButtonElement>("[data-dimension]").forEach((button) => {
     button.toggleAttribute("aria-pressed", Number(button.dataset.dimension) === state.activeDimension);
   });
@@ -455,7 +443,7 @@ function renderUi(): void {
   if (basisCheckbox) basisCheckbox.checked = state.showBasis;
   animationModeElement.value = state.animation.mode;
 
-  stackElement.innerHTML = renderEquation();
+  if (renderStack) stackElement.innerHTML = renderEquation();
   updateAnimationHighlight(performance.now());
 }
 
@@ -938,7 +926,7 @@ function tick(now: number): void {
   if (state.animation.status === "playing" && now - state.animation.startedAt >= getAnimationDuration(workspace)) {
     workspace.appliedTransform = getTotalTransform(workspace);
     state.animation.status = "idle";
-    renderUi();
+    renderUi(false);
   }
   updateAnimationHighlight(now);
   scene.render(getRenderState(state, now));

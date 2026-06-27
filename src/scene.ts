@@ -107,7 +107,6 @@ export class MatrixScene {
     this.orthoControls.maxTargetRadius = MAX_PAN_RADIUS;
     this.orthoControls.enabled = false;
 
-    window.addEventListener("resize", () => this.resize());
     this.resize();
   }
 
