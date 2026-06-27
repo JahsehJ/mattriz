@@ -947,3 +947,12 @@ function tick(now: number): void {
 
 renderUi();
 requestAnimationFrame(tick);
+
+if (import.meta.env.PROD && "serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    const baseUrl = new URL(import.meta.env.BASE_URL, window.location.href);
+    void navigator.serviceWorker.register(new URL("sw.js", baseUrl), {
+      scope: baseUrl.pathname
+    });
+  });
+}

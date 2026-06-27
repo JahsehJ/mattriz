@@ -14,6 +14,7 @@ Current release: **1.0.0**
 - MathML equation structure with HTML numeric inputs.
 - Orthographic 2D and perspective 3D cameras with independent session state.
 - Persistent grid geometry shared by the animation pipeline.
+- Installable progressive web app with offline app-shell support.
 
 ## Development
 
