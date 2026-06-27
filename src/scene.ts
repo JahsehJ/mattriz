@@ -30,7 +30,7 @@ interface VectorVisual {
   arrow: ArrowVisual;
   label: THREE.Sprite;
   labelText: string;
-  color: number;
+  color: string;
 }
 
 export class MatrixScene {
@@ -136,7 +136,7 @@ export class MatrixScene {
     this.updateGrid(state.dimension, state.transform);
     this.updateAxisLabels(state.dimension, state.transform);
     this.updateBasis(state.dimension, state.transform, state.showBasis);
-    this.drawVectors(state.dimension, state.transform, state.vectors);
+    this.updateVectors(state.dimension, state.transform, state.vectors);
     this.updateControls(state.dimension);
     this.renderer.render(this.scene, state.dimension === 2 ? this.orthoCamera : this.perspectiveCamera);
   }
@@ -224,7 +224,7 @@ export class MatrixScene {
     });
   }
 
-  private drawVectors(
+  private updateVectors(
     dimension: Dimension,
     matrix: MatrixValues,
     vectors: { id: string; components: VectorValues; color: string; label: string }[]
@@ -240,25 +240,26 @@ export class MatrixScene {
 
     vectors.forEach((vector) => {
       const transformed = applyMatrixToVector(dimension, matrix, vector.components);
-      const color = new THREE.Color(vector.color).getHex();
       let visual = this.vectorVisuals.get(vector.id);
       if (!visual) {
+        const color = new THREE.Color(vector.color).getHex();
         visual = {
           arrow: this.createArrowVisual(color, 1),
           label: createTextLabel(vector.label, color, VECTOR_LABEL_SIZE),
           labelText: vector.label,
-          color
+          color: vector.color
         };
         this.vectorVisuals.set(vector.id, visual);
         this.root.add(visual.arrow.group, visual.label);
       }
 
-      if (visual.labelText !== vector.label || visual.color !== color) {
+      if (visual.labelText !== vector.label || visual.color !== vector.color) {
+        const color = new THREE.Color(vector.color).getHex();
         updateTextLabel(visual.label, vector.label, color);
         visual.arrow.basicMaterial.color.setHex(color);
         visual.arrow.lambertMaterial.color.setHex(color);
         visual.labelText = vector.label;
-        visual.color = color;
+        visual.color = vector.color;
       }
 
       this.updateArrow(visual.arrow, transformed, dimension, USER_ARROW_Z);
