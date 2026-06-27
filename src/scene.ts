@@ -502,9 +502,13 @@ function drawLabel(
 	context.textBaseline = "middle";
 	context.lineWidth = 10;
 	context.strokeStyle = "rgba(16, 20, 22, 0.92)";
-	context.strokeText(text, 128, 64);
 	context.fillStyle = `#${color.toString(16).padStart(6, "0")}`;
-	context.fillText(text, 128, 64);
+	const renderedText = text.replace(
+		/\d/g,
+		(digit) => "₀₁₂₃₄₅₆₇₈₉"[Number(digit)],
+	);
+	context.strokeText(renderedText, 128, 64);
+	context.fillText(renderedText, 128, 64);
 }
 
 function createGridGeometry(
