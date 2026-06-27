@@ -9,7 +9,7 @@ import {
 	multiply3,
 	identityMatrix,
 	parseBoundedNumber,
-	parseFiniteNumber
+	parseFiniteNumber,
 } from "./math";
 import {
 	createInitialState,
@@ -18,7 +18,7 @@ import {
 	getActiveStepMatrixId,
 	getActiveStepProgress,
 	getAnimatedTransform,
-	getStepTransform
+	getStepTransform,
 } from "./state";
 
 describe("matrix math", () => {
@@ -40,7 +40,9 @@ describe("matrix math", () => {
 	});
 
 	it("interpolates matrices entry-wise", () => {
-		expect(lerpMatrix(2, [1, 0, 0, 1], [3, 2, 2, 3], 0.5)).toEqual([2, 1, 1, 2]);
+		expect(lerpMatrix(2, [1, 0, 0, 1], [3, 2, 2, 3], 0.5)).toEqual([
+			2, 1, 1, 2,
+		]);
 	});
 
 	it("parses finite numeric input only", () => {
@@ -63,9 +65,13 @@ describe("animation state", () => {
 		expect(state.workspaces[2].matrices[0].values).toEqual([1, 0, 0, 1]);
 		expect(state.workspaces[2].vectors[0].components).toEqual([1, 1]);
 		expect(state.workspaces[2].appliedTransform).toEqual([1, 0, 0, 1]);
-		expect(state.workspaces[3].matrices[0].values).toEqual([1, 0, 0, 0, 1, 0, 0, 0, 1]);
+		expect(state.workspaces[3].matrices[0].values).toEqual([
+			1, 0, 0, 0, 1, 0, 0, 0, 1,
+		]);
 		expect(state.workspaces[3].vectors[0].components).toEqual([1, 1, 1]);
-		expect(state.workspaces[3].appliedTransform).toEqual([1, 0, 0, 0, 1, 0, 0, 0, 1]);
+		expect(state.workspaces[3].appliedTransform).toEqual([
+			1, 0, 0, 0, 1, 0, 0, 0, 1,
+		]);
 	});
 
 	it("creates custom vectors away from the basis axes", () => {
@@ -84,9 +90,9 @@ describe("animation state", () => {
 				dimension: 2,
 				matrices: [a, b],
 				vectors: [],
-				appliedTransform: identityMatrix(2)
+				appliedTransform: identityMatrix(2),
 			},
-			150
+			150,
 		);
 
 		expect(transform).toEqual([1.5, 1.5, 0, 1.5]);
@@ -102,7 +108,7 @@ describe("animation state", () => {
 			dimension: 2 as const,
 			matrices: [a, b],
 			vectors: [],
-			appliedTransform: identityMatrix(2)
+			appliedTransform: identityMatrix(2),
 		};
 
 		expect(
@@ -112,10 +118,10 @@ describe("animation state", () => {
 					mode: "steps",
 					status: "playing",
 					startedAt: 1000,
-					pausedAt: 0
+					pausedAt: 0,
 				},
-				1050
-			)
+				1050,
+			),
 		).toBe(b.id);
 
 		expect(
@@ -125,10 +131,10 @@ describe("animation state", () => {
 					mode: "steps",
 					status: "playing",
 					startedAt: 1000,
-					pausedAt: 0
+					pausedAt: 0,
 				},
-				1150
-			)
+				1150,
+			),
 		).toBe(a.id);
 	});
 
@@ -142,7 +148,7 @@ describe("animation state", () => {
 			dimension: 2 as const,
 			matrices: [a, b],
 			vectors: [],
-			appliedTransform: identityMatrix(2)
+			appliedTransform: identityMatrix(2),
 		};
 
 		expect(
@@ -152,10 +158,10 @@ describe("animation state", () => {
 					mode: "steps",
 					status: "playing",
 					startedAt: 1000,
-					pausedAt: 0
+					pausedAt: 0,
 				},
-				1050
-			)
+				1050,
+			),
 		).toEqual({ matrixId: b.id, progress: 0.5 });
 
 		expect(
@@ -165,10 +171,10 @@ describe("animation state", () => {
 					mode: "steps",
 					status: "playing",
 					startedAt: 1000,
-					pausedAt: 0
+					pausedAt: 0,
 				},
-				1250
-			)
+				1250,
+			),
 		).toEqual({ matrixId: a.id, progress: 0.5 });
 	});
 
@@ -178,7 +184,7 @@ describe("animation state", () => {
 			dimension: 2 as const,
 			matrices: [matrix],
 			vectors: [],
-			appliedTransform: identityMatrix(2)
+			appliedTransform: identityMatrix(2),
 		};
 
 		expect(
@@ -188,10 +194,10 @@ describe("animation state", () => {
 					mode: "steps",
 					status: "idle",
 					startedAt: 0,
-					pausedAt: 0
+					pausedAt: 0,
 				},
-				0
-			)
+				0,
+			),
 		).toEqual([1, 0, 0, 1]);
 
 		workspace.appliedTransform = [2, 0, 0, 2];
@@ -204,10 +210,10 @@ describe("animation state", () => {
 					mode: "steps",
 					status: "idle",
 					startedAt: 0,
-					pausedAt: 0
+					pausedAt: 0,
 				},
-				0
-			)
+				0,
+			),
 		).toEqual([2, 0, 0, 2]);
 	});
 });

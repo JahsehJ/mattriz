@@ -7,7 +7,7 @@ import {
 	MatrixValues,
 	Vec3,
 	VectorValues,
-	applyMatrixToVector
+	applyMatrixToVector,
 } from "./math";
 import { RenderState } from "./state";
 
@@ -44,23 +44,37 @@ interface VectorVisual {
 export class MatrixScene {
 	private readonly renderer: THREE.WebGLRenderer;
 	private readonly scene = new THREE.Scene();
-	private readonly perspectiveCamera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
-	private readonly orthoCamera = new THREE.OrthographicCamera(-7, 7, 7, -7, 0.1, 100);
+	private readonly perspectiveCamera = new THREE.PerspectiveCamera(
+		45,
+		1,
+		0.1,
+		100,
+	);
+	private readonly orthoCamera = new THREE.OrthographicCamera(
+		-7,
+		7,
+		7,
+		-7,
+		0.1,
+		100,
+	);
 	private readonly perspectiveControls: OrbitControls;
 	private readonly orthoControls: OrbitControls;
 	private readonly gridGroup = new THREE.Group();
 	private readonly gridPlanes = {
 		xy: createGridPlane("xy"),
 		xz: createGridPlane("xz"),
-		yz: createGridPlane("yz")
+		yz: createGridPlane("yz"),
 	};
 	private readonly axisLabels = createAxisLabels();
 	private readonly root = new THREE.Group();
 	private readonly arrowGeometries = {
 		shaft: new THREE.CylinderGeometry(1, 1, 1, 16),
-		head: new THREE.ConeGeometry(1, 1, 24)
+		head: new THREE.ConeGeometry(1, 1, 24),
 	};
-	private readonly basisArrows = BASIS_COLORS.map((color) => this.createArrowVisual(color, 0));
+	private readonly basisArrows = BASIS_COLORS.map((color) =>
+		this.createArrowVisual(color, 0),
+	);
 	private readonly vectorVisuals = new Map<string, VectorVisual>();
 	private dimension: Dimension = 3;
 	private activeControlsDimension: Dimension = 3;
@@ -68,16 +82,24 @@ export class MatrixScene {
 	private viewportHeight = 0;
 
 	constructor(private readonly canvas: HTMLCanvasElement) {
-		this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+		this.renderer = new THREE.WebGLRenderer({
+			canvas,
+			antialias: true,
+			alpha: true,
+		});
 		this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 		this.renderer.setClearColor(0x101416, 1);
 
 		this.root.add(
 			this.gridGroup,
 			this.axisLabels,
-			...this.basisArrows.map((arrow) => arrow.group)
+			...this.basisArrows.map((arrow) => arrow.group),
 		);
-		this.gridGroup.add(this.gridPlanes.xy, this.gridPlanes.xz, this.gridPlanes.yz);
+		this.gridGroup.add(
+			this.gridPlanes.xy,
+			this.gridPlanes.xz,
+			this.gridPlanes.yz,
+		);
 		this.scene.add(this.root);
 		this.scene.add(new THREE.AmbientLight(0xffffff, 0.55));
 		const arrowLight = new THREE.DirectionalLight(0xffffff, 1.15);
@@ -92,7 +114,10 @@ export class MatrixScene {
 		this.orthoCamera.position.set(0, 0, 10);
 		this.orthoCamera.lookAt(0, 0, 0);
 
-		this.perspectiveControls = new OrbitControls(this.perspectiveCamera, this.canvas);
+		this.perspectiveControls = new OrbitControls(
+			this.perspectiveCamera,
+			this.canvas,
+		);
 		this.perspectiveControls.enableDamping = true;
 		this.perspectiveControls.dampingFactor = 0.08;
 		this.perspectiveControls.screenSpacePanning = true;
@@ -108,11 +133,11 @@ export class MatrixScene {
 		this.orthoControls.mouseButtons = {
 			LEFT: THREE.MOUSE.PAN,
 			MIDDLE: THREE.MOUSE.DOLLY,
-			RIGHT: THREE.MOUSE.PAN
+			RIGHT: THREE.MOUSE.PAN,
 		};
 		this.orthoControls.touches = {
 			ONE: THREE.TOUCH.PAN,
-			TWO: THREE.TOUCH.DOLLY_PAN
+			TWO: THREE.TOUCH.DOLLY_PAN,
 		};
 		this.orthoControls.minZoom = 0.45;
 		this.orthoControls.maxZoom = 4;
@@ -151,14 +176,15 @@ export class MatrixScene {
 		this.updateControls(state.dimension);
 		this.renderer.render(
 			this.scene,
-			state.dimension === 2 ? this.orthoCamera : this.perspectiveCamera
+			state.dimension === 2 ? this.orthoCamera : this.perspectiveCamera,
 		);
 	}
 
 	resize(): void {
 		const width = Math.max(1, this.canvas.clientWidth);
 		const height = Math.max(1, this.canvas.clientHeight);
-		if (width === this.viewportWidth && height === this.viewportHeight) return;
+		if (width === this.viewportWidth && height === this.viewportHeight)
+			return;
 		this.viewportWidth = width;
 		this.viewportHeight = height;
 
@@ -204,14 +230,16 @@ export class MatrixScene {
 		const axes: Vec3[] = [
 			[1, 0, 0],
 			[0, 1, 0],
-			[0, 0, 1]
+			[0, 0, 1],
 		];
 
 		this.axisLabels.children.forEach((label, index) => {
 			label.visible = index < dimension;
 			if (!label.visible) return;
 
-			const endpoint = toThree(transformPoint(dimension, matrix, axes[index]));
+			const endpoint = toThree(
+				transformPoint(dimension, matrix, axes[index]),
+			);
 			if (endpoint.lengthSq() < 0.000001) {
 				label.visible = false;
 				return;
@@ -223,11 +251,15 @@ export class MatrixScene {
 		});
 	}
 
-	private updateBasis(dimension: Dimension, matrix: MatrixValues, visible: boolean): void {
+	private updateBasis(
+		dimension: Dimension,
+		matrix: MatrixValues,
+		visible: boolean,
+	): void {
 		const basis: Vec3[] = [
 			[1, 0, 0],
 			[0, 1, 0],
-			[0, 0, 1]
+			[0, 0, 1],
 		];
 		this.basisArrows.forEach((arrow, index) => {
 			if (!visible || index >= dimension) {
@@ -238,7 +270,7 @@ export class MatrixScene {
 				arrow,
 				transformPoint(dimension, matrix, basis[index]),
 				dimension,
-				BASIS_ARROW_Z
+				BASIS_ARROW_Z,
 			);
 		});
 	}
@@ -246,7 +278,12 @@ export class MatrixScene {
 	private updateVectors(
 		dimension: Dimension,
 		matrix: MatrixValues,
-		vectors: { id: string; components: VectorValues; color: string; label: string }[]
+		vectors: {
+			id: string;
+			components: VectorValues;
+			color: string;
+			label: string;
+		}[],
 	): void {
 		const activeIds = new Set(vectors.map((vector) => vector.id));
 		for (const [id, visual] of this.vectorVisuals) {
@@ -258,21 +295,32 @@ export class MatrixScene {
 		}
 
 		vectors.forEach((vector) => {
-			const transformed = applyMatrixToVector(dimension, matrix, vector.components);
+			const transformed = applyMatrixToVector(
+				dimension,
+				matrix,
+				vector.components,
+			);
 			let visual = this.vectorVisuals.get(vector.id);
 			if (!visual) {
 				const color = new THREE.Color(vector.color).getHex();
 				visual = {
 					arrow: this.createArrowVisual(color, 1),
-					label: createTextLabel(vector.label, color, VECTOR_LABEL_SIZE),
+					label: createTextLabel(
+						vector.label,
+						color,
+						VECTOR_LABEL_SIZE,
+					),
 					labelText: vector.label,
-					color: vector.color
+					color: vector.color,
 				};
 				this.vectorVisuals.set(vector.id, visual);
 				this.root.add(visual.arrow.group, visual.label);
 			}
 
-			if (visual.labelText !== vector.label || visual.color !== vector.color) {
+			if (
+				visual.labelText !== vector.label ||
+				visual.color !== vector.color
+			) {
 				const color = new THREE.Color(vector.color).getHex();
 				updateTextLabel(visual.label, vector.label, color);
 				visual.arrow.basicMaterial.color.setHex(color);
@@ -281,12 +329,21 @@ export class MatrixScene {
 				visual.color = vector.color;
 			}
 
-			this.updateArrow(visual.arrow, transformed, dimension, USER_ARROW_Z);
+			this.updateArrow(
+				visual.arrow,
+				transformed,
+				dimension,
+				USER_ARROW_Z,
+			);
 			this.updateVectorLabel(visual.label, dimension, transformed);
 		});
 	}
 
-	private updateVectorLabel(label: THREE.Sprite, dimension: Dimension, target: Vec3): void {
+	private updateVectorLabel(
+		label: THREE.Sprite,
+		dimension: Dimension,
+		target: Vec3,
+	): void {
 		const endpoint = toThree(target);
 		const length = endpoint.length();
 		label.visible = length >= 0.001;
@@ -302,12 +359,15 @@ export class MatrixScene {
 			color,
 			polygonOffset: depthBias !== 0,
 			polygonOffsetFactor: -depthBias,
-			polygonOffsetUnits: -depthBias
+			polygonOffsetUnits: -depthBias,
 		};
 		const basicMaterial = new THREE.MeshBasicMaterial(materialOptions);
 		const lambertMaterial = new THREE.MeshLambertMaterial(materialOptions);
 		const group = new THREE.Group();
-		const shaft = new THREE.Mesh(this.arrowGeometries.shaft, lambertMaterial);
+		const shaft = new THREE.Mesh(
+			this.arrowGeometries.shaft,
+			lambertMaterial,
+		);
 		const head = new THREE.Mesh(this.arrowGeometries.head, lambertMaterial);
 		group.add(shaft, head);
 		group.renderOrder = depthBias;
@@ -318,7 +378,7 @@ export class MatrixScene {
 		arrow: ArrowVisual,
 		target: Vec3,
 		dimension: Dimension,
-		zLift: number
+		zLift: number,
 	): void {
 		const end = toThree(target);
 		const length = end.length();
@@ -331,7 +391,8 @@ export class MatrixScene {
 		const headLength = Math.min(ARROW_SHAFT_RADIUS * 4, length * 0.4);
 		const headRadius = ARROW_SHAFT_RADIUS * 2.7 * thicknessScale;
 		const shaftLength = length - headLength;
-		const material = dimension === 2 ? arrow.basicMaterial : arrow.lambertMaterial;
+		const material =
+			dimension === 2 ? arrow.basicMaterial : arrow.lambertMaterial;
 
 		arrow.shaft.material = material;
 		arrow.shaft.scale.set(shaftRadius, shaftLength, shaftRadius);
@@ -339,13 +400,24 @@ export class MatrixScene {
 		arrow.head.material = material;
 		arrow.head.scale.set(headRadius, headLength, headRadius);
 		arrow.head.position.y = shaftLength + headLength / 2;
-		arrow.group.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction);
+		arrow.group.quaternion.setFromUnitVectors(
+			new THREE.Vector3(0, 1, 0),
+			direction,
+		);
 		arrow.group.position.set(0, 0, dimension === 2 ? zLift : 0);
 	}
 }
 
-function transformPoint(dimension: Dimension, matrix: MatrixValues, point: Vec3): Vec3 {
-	return applyMatrixToVector(dimension, matrix, dimension === 2 ? [point[0], point[1]] : point);
+function transformPoint(
+	dimension: Dimension,
+	matrix: MatrixValues,
+	point: Vec3,
+): Vec3 {
+	return applyMatrixToVector(
+		dimension,
+		matrix,
+		dimension === 2 ? [point[0], point[1]] : point,
+	);
 }
 
 function toThree(point: Vec3): THREE.Vector3 {
@@ -357,16 +429,20 @@ function createGridPlane(plane: "xy" | "xz" | "yz"): THREE.Group {
 	group.add(
 		new THREE.LineSegments(
 			createGridGeometry(plane, false),
-			new THREE.LineBasicMaterial({ color: GRID_COLOR, transparent: true, opacity: 0.42 })
+			new THREE.LineBasicMaterial({
+				color: GRID_COLOR,
+				transparent: true,
+				opacity: 0.42,
+			}),
 		),
 		new THREE.LineSegments(
 			createGridGeometry(plane, true),
 			new THREE.LineBasicMaterial({
 				color: GRID_CENTER_COLOR,
 				transparent: true,
-				opacity: 0.72
-			})
-		)
+				opacity: 0.72,
+			}),
+		),
 	);
 	return group;
 }
@@ -379,7 +455,11 @@ function createAxisLabels(): THREE.Group {
 	return group;
 }
 
-function createTextLabel(text: string, color: number, size: number): THREE.Sprite {
+function createTextLabel(
+	text: string,
+	color: number,
+	size: number,
+): THREE.Sprite {
 	const canvas = document.createElement("canvas");
 	canvas.width = 256;
 	canvas.height = 128;
@@ -389,7 +469,7 @@ function createTextLabel(text: string, color: number, size: number): THREE.Sprit
 		map: new THREE.CanvasTexture(canvas),
 		depthTest: false,
 		transparent: true,
-		toneMapped: false
+		toneMapped: false,
 	});
 	const label = new THREE.Sprite(material);
 	label.scale.set(size * 2, size, 1);
@@ -397,14 +477,22 @@ function createTextLabel(text: string, color: number, size: number): THREE.Sprit
 	return label;
 }
 
-function updateTextLabel(label: THREE.Sprite, text: string, color: number): void {
+function updateTextLabel(
+	label: THREE.Sprite,
+	text: string,
+	color: number,
+): void {
 	const texture = label.material.map;
 	if (!texture || !(texture.image instanceof HTMLCanvasElement)) return;
 	drawLabel(texture.image, text, color);
 	texture.needsUpdate = true;
 }
 
-function drawLabel(canvas: HTMLCanvasElement, text: string, color: number): void {
+function drawLabel(
+	canvas: HTMLCanvasElement,
+	text: string,
+	color: number,
+): void {
 	const context = canvas.getContext("2d");
 	if (!context) return;
 
@@ -419,7 +507,10 @@ function drawLabel(canvas: HTMLCanvasElement, text: string, color: number): void
 	context.fillText(text, 128, 64);
 }
 
-function createGridGeometry(plane: "xy" | "xz" | "yz", center: boolean): THREE.BufferGeometry {
+function createGridGeometry(
+	plane: "xy" | "xz" | "yz",
+	center: boolean,
+): THREE.BufferGeometry {
 	const positions: number[] = [];
 	for (let i = -GRID_EXTENT; i <= GRID_EXTENT; i += GRID_STEP) {
 		if ((i === 0) !== center) continue;
@@ -428,7 +519,10 @@ function createGridGeometry(plane: "xy" | "xz" | "yz", center: boolean): THREE.B
 	}
 
 	const geometry = new THREE.BufferGeometry();
-	geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+	geometry.setAttribute(
+		"position",
+		new THREE.Float32BufferAttribute(positions, 3),
+	);
 	return geometry;
 }
 
@@ -438,7 +532,7 @@ function pushGridLine(
 	a1: number,
 	a2: number,
 	b1: number,
-	b2: number
+	b2: number,
 ): void {
 	if (plane === "xy") positions.push(a1, a2, 0, b1, b2, 0);
 	if (plane === "xz") positions.push(a1, 0, a2, b1, 0, b2);
@@ -454,7 +548,24 @@ function toMatrix4(dimension: Dimension, matrix: MatrixValues): THREE.Matrix4 {
 	}
 
 	const m = matrix as Mat3;
-	result.set(m[0], m[1], m[2], 0, m[3], m[4], m[5], 0, m[6], m[7], m[8], 0, 0, 0, 0, 1);
+	result.set(
+		m[0],
+		m[1],
+		m[2],
+		0,
+		m[3],
+		m[4],
+		m[5],
+		0,
+		m[6],
+		m[7],
+		m[8],
+		0,
+		0,
+		0,
+		0,
+		1,
+	);
 	return result;
 }
 

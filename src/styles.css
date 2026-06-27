@@ -458,7 +458,10 @@ kbd {
 
 .equation-row {
 	display: grid;
-	grid-template-columns: minmax(0, max-content) auto minmax(180px, max-content);
+	grid-template-columns: minmax(0, max-content) auto minmax(
+			180px,
+			max-content
+		);
 	gap: 16px;
 	align-items: end;
 	min-width: max-content;
@@ -605,7 +608,9 @@ kbd {
 	z-index: 0;
 	width: var(--step-progress, 0%);
 	content: "";
-	background: linear-gradient(90deg, rgb(244 183 64 / 24%), rgb(244 183 64 / 10%)), #172124;
+	background:
+		linear-gradient(90deg, rgb(244 183 64 / 24%), rgb(244 183 64 / 10%)),
+		#172124;
 	transition: width 120ms linear;
 }
 
@@ -1033,7 +1038,10 @@ kbd {
 	}
 
 	.equation-row {
-		grid-template-columns: minmax(0, max-content) auto minmax(180px, max-content);
+		grid-template-columns: minmax(0, max-content) auto minmax(
+				180px,
+				max-content
+			);
 	}
 
 	.matrix-item {

@@ -10,14 +10,14 @@ import {
 	getAnimationDuration,
 	getRenderState,
 	getTotalTransform,
-	getWorkspace
+	getWorkspace,
 } from "./state";
 import {
 	Dimension,
 	VectorValues,
 	applyMatrixToVector,
 	identityMatrix,
-	parseBoundedNumber
+	parseBoundedNumber,
 } from "./math";
 import { Locale, MessageKey, translate } from "./i18n";
 
@@ -38,7 +38,14 @@ let dropIndicatorElement: HTMLElement | null = null;
 let isInteractingWithInput = false;
 const maxAbsoluteInputValue = 100;
 const maxNumericInputLength = 16;
-const vectorColors = ["#f4b740", "#5bd8a6", "#ef6f6c", "#8fb4ff", "#d989ff", "#5ed5e8"];
+const vectorColors = [
+	"#f4b740",
+	"#5bd8a6",
+	"#ef6f6c",
+	"#8fb4ff",
+	"#d989ff",
+	"#5ed5e8",
+];
 
 const app = document.querySelector<HTMLDivElement>("#app");
 if (!app) {
@@ -135,7 +142,9 @@ root.innerHTML = `
 
 const canvas = root.querySelector<HTMLCanvasElement>(".scene-canvas");
 const matrixStack = root.querySelector<HTMLElement>("[data-matrix-stack]");
-const animationMode = root.querySelector<HTMLSelectElement>("[data-animation-mode]");
+const animationMode = root.querySelector<HTMLSelectElement>(
+	"[data-animation-mode]",
+);
 const language = root.querySelector<HTMLSelectElement>("[data-language]");
 const aboutDialog = root.querySelector<HTMLDialogElement>(".about-dialog");
 if (!canvas || !matrixStack || !animationMode || !language || !aboutDialog) {
@@ -149,11 +158,14 @@ const scene = new MatrixScene(canvas);
 
 root.addEventListener("click", (event) => {
 	const target = event.target as HTMLElement;
-	const dimensionButton = target.closest<HTMLButtonElement>("[data-dimension]");
+	const dimensionButton =
+		target.closest<HTMLButtonElement>("[data-dimension]");
 	const actionButton = target.closest<HTMLButtonElement>("[data-action]");
 
 	if (dimensionButton) {
-		state.activeDimension = Number(dimensionButton.dataset.dimension) as Dimension;
+		state.activeDimension = Number(
+			dimensionButton.dataset.dimension,
+		) as Dimension;
 		resetAnimation();
 	}
 
@@ -179,7 +191,8 @@ root.addEventListener("input", (event) => {
 });
 
 animationModeElement.addEventListener("change", () => {
-	state.animation.mode = animationModeElement.value === "composed" ? "composed" : "steps";
+	state.animation.mode =
+		animationModeElement.value === "composed" ? "composed" : "steps";
 	resetAnimation(false);
 	renderUi();
 });
@@ -192,7 +205,10 @@ root.addEventListener("change", (event) => {
 		localizeStaticUi();
 		renderUi();
 	}
-	if (target instanceof HTMLInputElement && target.dataset.action === "toggle-basis") {
+	if (
+		target instanceof HTMLInputElement &&
+		target.dataset.action === "toggle-basis"
+	) {
 		state.showBasis = target.checked;
 		renderUi(false);
 	}
@@ -249,10 +265,12 @@ stackElement.addEventListener("drop", (event) => {
 	event.preventDefault();
 	if (dragState?.kind === "vector") {
 		const vectorTarget = getVectorDropTarget(event);
-		if (vectorTarget) moveVector(dragState.id, vectorTarget.id, vectorTarget.side);
+		if (vectorTarget)
+			moveVector(dragState.id, vectorTarget.id, vectorTarget.side);
 	} else if (dragState?.kind === "matrix") {
 		const matrixTarget = getMatrixDropTarget(event);
-		if (matrixTarget) moveMatrix(dragState.id, matrixTarget.id, matrixTarget.side);
+		if (matrixTarget)
+			moveMatrix(dragState.id, matrixTarget.id, matrixTarget.side);
 	}
 	clearDropIndicator();
 	clearDraggingElement();
@@ -270,8 +288,8 @@ function addMatrix(): void {
 	workspace.matrices.unshift(
 		createMatrixNode(
 			workspace.dimension,
-			nextMatrixLabel(workspace.matrices.map((matrix) => matrix.label))
-		)
+			nextMatrixLabel(workspace.matrices.map((matrix) => matrix.label)),
+		),
 	);
 	resetAnimation();
 }
@@ -283,15 +301,17 @@ function addVector(): void {
 		createVectorNode(
 			workspace.dimension,
 			nextVectorLabel(workspace.vectors.map((vector) => vector.label)),
-			color
-		)
+			color,
+		),
 	);
 	resetAnimation();
 }
 
 function deleteMatrix(id: string): void {
 	const workspace = getWorkspace(state);
-	workspace.matrices = workspace.matrices.filter((matrix) => matrix.id !== id);
+	workspace.matrices = workspace.matrices.filter(
+		(matrix) => matrix.id !== id,
+	);
 	resetAnimation();
 }
 
@@ -315,7 +335,7 @@ function moveItem<T extends SortableNode>(
 	items: T[],
 	id: string,
 	targetId: string,
-	side: DropSide
+	side: DropSide,
 ): boolean {
 	if (id === targetId) return false;
 
@@ -324,10 +344,16 @@ function moveItem<T extends SortableNode>(
 	if (fromIndex < 0 || toIndex < 0) return false;
 
 	const [item] = items.splice(fromIndex, 1);
-	const adjustedTargetIndex = items.findIndex((candidate) => candidate.id === targetId);
+	const adjustedTargetIndex = items.findIndex(
+		(candidate) => candidate.id === targetId,
+	);
 	if (adjustedTargetIndex < 0) return false;
 
-	items.splice(side === "before" ? adjustedTargetIndex : adjustedTargetIndex + 1, 0, item);
+	items.splice(
+		side === "before" ? adjustedTargetIndex : adjustedTargetIndex + 1,
+		0,
+		item,
+	);
 	return true;
 }
 
@@ -337,19 +363,27 @@ function handleInput(input: HTMLInputElement): void {
 		return;
 	}
 	if (input.dataset.matrixId && input.dataset.entryIndex !== undefined) {
-		updateMatrixEntry(input.dataset.matrixId, Number(input.dataset.entryIndex), input.value);
+		updateMatrixEntry(
+			input.dataset.matrixId,
+			Number(input.dataset.entryIndex),
+			input.value,
+		);
 		return;
 	}
 	if (input.dataset.vectorId && input.dataset.componentIndex !== undefined) {
 		updateVectorComponent(
 			input.dataset.vectorId,
 			Number(input.dataset.componentIndex),
-			input.value
+			input.value,
 		);
 	}
 }
 
-function updateMatrixEntry(id: string, entryIndex: number, value: string): void {
+function updateMatrixEntry(
+	id: string,
+	entryIndex: number,
+	value: string,
+): void {
 	const matrix = getWorkspace(state).matrices.find((item) => item.id === id);
 	if (!matrix) return;
 
@@ -361,7 +395,7 @@ function updateMatrixEntry(id: string, entryIndex: number, value: string): void 
 		inputSelector: `input[data-matrix-id="${cssEscape(id)}"]`,
 		commit: (values) => {
 			matrix.values = values as MatrixNode["values"];
-		}
+		},
 	});
 }
 
@@ -371,12 +405,16 @@ function updateDuration(id: string, value: number): void {
 	matrix.durationMs = Math.max(100, Math.min(3000, value));
 	resetAnimation(false);
 	const output = stackElement.querySelector<HTMLElement>(
-		`[data-duration-output="${cssEscape(id)}"]`
+		`[data-duration-output="${cssEscape(id)}"]`,
 	);
 	if (output) output.textContent = `${matrix.durationMs}ms`;
 }
 
-function updateVectorComponent(id: string, componentIndex: number, value: string): void {
+function updateVectorComponent(
+	id: string,
+	componentIndex: number,
+	value: string,
+): void {
 	const vector = getWorkspace(state).vectors.find((item) => item.id === id);
 	if (!vector) return;
 
@@ -388,7 +426,7 @@ function updateVectorComponent(id: string, componentIndex: number, value: string
 		inputSelector: `input[data-vector-id="${cssEscape(id)}"]`,
 		commit: (values) => {
 			vector.components = values as VectorValues;
-		}
+		},
 	});
 }
 
@@ -398,7 +436,7 @@ function updateNumericDraft({
 	value,
 	count,
 	inputSelector,
-	commit
+	commit,
 }: {
 	draft: string[];
 	index: number;
@@ -411,9 +449,10 @@ function updateNumericDraft({
 	const parsed = draft
 		.slice(0, count)
 		.map((entry) => parseBoundedNumber(entry, maxAbsoluteInputValue));
-	const inputs = stackElement.querySelectorAll<HTMLInputElement>(inputSelector);
+	const inputs =
+		stackElement.querySelectorAll<HTMLInputElement>(inputSelector);
 	inputs.forEach((input, inputIndex) =>
-		input.toggleAttribute("aria-invalid", parsed[inputIndex] === null)
+		input.toggleAttribute("aria-invalid", parsed[inputIndex] === null),
 	);
 
 	if (!parsed.every((entry): entry is number => entry !== null)) return;
@@ -446,7 +485,9 @@ function resetAnimation(renderStack = true): void {
 }
 
 function resetTransform(): void {
-	getWorkspace(state).appliedTransform = identityMatrix(state.activeDimension);
+	getWorkspace(state).appliedTransform = identityMatrix(
+		state.activeDimension,
+	);
 	resetAnimation(false);
 }
 
@@ -458,24 +499,35 @@ function localizeStaticUi(): void {
 	root.querySelectorAll<HTMLElement>("[data-i18n]").forEach((element) => {
 		element.textContent = t(element.dataset.i18n as MessageKey);
 	});
-	root.querySelectorAll<HTMLElement>("[data-i18n-aria]").forEach((element) => {
-		element.setAttribute("aria-label", t(element.dataset.i18nAria as MessageKey));
-	});
-	root.querySelectorAll<HTMLElement>("[data-i18n-title]").forEach((element) => {
-		element.title = t(element.dataset.i18nTitle as MessageKey);
-	});
+	root.querySelectorAll<HTMLElement>("[data-i18n-aria]").forEach(
+		(element) => {
+			element.setAttribute(
+				"aria-label",
+				t(element.dataset.i18nAria as MessageKey),
+			);
+		},
+	);
+	root.querySelectorAll<HTMLElement>("[data-i18n-title]").forEach(
+		(element) => {
+			element.title = t(element.dataset.i18nTitle as MessageKey);
+		},
+	);
 }
 
 function renderUi(renderStack = true): void {
-	root.querySelectorAll<HTMLButtonElement>("[data-dimension]").forEach((button) => {
-		button.toggleAttribute(
-			"aria-pressed",
-			Number(button.dataset.dimension) === state.activeDimension
-		);
-	});
+	root.querySelectorAll<HTMLButtonElement>("[data-dimension]").forEach(
+		(button) => {
+			button.toggleAttribute(
+				"aria-pressed",
+				Number(button.dataset.dimension) === state.activeDimension,
+			);
+		},
+	);
 
 	updatePlaybackControl();
-	const basisCheckbox = root.querySelector<HTMLInputElement>("[data-action='toggle-basis']");
+	const basisCheckbox = root.querySelector<HTMLInputElement>(
+		"[data-action='toggle-basis']",
+	);
 	if (basisCheckbox) basisCheckbox.checked = state.showBasis;
 	animationModeElement.value = state.animation.mode;
 
@@ -484,7 +536,9 @@ function renderUi(renderStack = true): void {
 }
 
 function updatePlaybackControl(): void {
-	const playButton = root.querySelector<HTMLButtonElement>("[data-action='play']");
+	const playButton = root.querySelector<HTMLButtonElement>(
+		"[data-action='play']",
+	);
 	if (playButton) {
 		const playbackTextKey: MessageKey =
 			state.animation.status === "playing"
@@ -614,7 +668,7 @@ function renderVectorMatrix(): string {
           <span class="vector-color-label" aria-hidden="true"></span>
           <button type="button" data-action="delete-vector" data-id="${vector.id}" aria-label="${t("deleteVector", { label: vector.label })}" title="${t("deleteVector", { label: vector.label })}">${renderCloseIcon()}</button>
         </div>
-      `
+      `,
 		)
 		.join("");
 	const entries = Array.from(
@@ -639,7 +693,9 @@ function renderVectorMatrix(): string {
         />
       `;
 				})
-				.join("")}<span class="vector-add-cell" aria-hidden="true"></span>`
+				.join(
+					"",
+				)}<span class="vector-add-cell" aria-hidden="true"></span>`,
 	).join("");
 
 	return `
@@ -672,22 +728,25 @@ function renderResultMatrix(): string {
           </math>
           <span class="vector-color-label" aria-hidden="true"></span>
         </div>
-      `
+      `,
 		)
 		.join("");
 	const transformedVectors = workspace.vectors.map((vector) =>
-		applyMatrixToVector(workspace.dimension, totalTransform, vector.components).slice(
-			0,
-			workspace.dimension
-		)
+		applyMatrixToVector(
+			workspace.dimension,
+			totalTransform,
+			vector.components,
+		).slice(0, workspace.dimension),
 	);
-	const entries = Array.from({ length: workspace.dimension }, (_, componentIndex) =>
-		transformedVectors
-			.map(
-				(components, vectorIndex) =>
-					`<output data-result-vector-index="${vectorIndex}" data-result-component-index="${componentIndex}">${formatNumber(components[componentIndex] ?? 0)}</output>`
-			)
-			.join("")
+	const entries = Array.from(
+		{ length: workspace.dimension },
+		(_, componentIndex) =>
+			transformedVectors
+				.map(
+					(components, vectorIndex) =>
+						`<output data-result-vector-index="${vectorIndex}" data-result-component-index="${componentIndex}">${formatNumber(components[componentIndex] ?? 0)}</output>`,
+				)
+				.join(""),
 	).join("");
 
 	return `
@@ -720,13 +779,20 @@ function updateDropIndicator(event: DragEvent): void {
 }
 
 function getMatrixDropTarget(event: DragEvent): DropTarget | null {
-	const matrixStackElement = stackElement.querySelector<HTMLElement>(".matrix-stack");
+	const matrixStackElement =
+		stackElement.querySelector<HTMLElement>(".matrix-stack");
 	const matrixItems = Array.from(
-		stackElement.querySelectorAll<HTMLElement>(".matrix-item[data-matrix-id]")
+		stackElement.querySelectorAll<HTMLElement>(
+			".matrix-item[data-matrix-id]",
+		),
 	);
 	const target = getSortableDropTarget(event, matrixItems, "matrixId");
 	if (!target) return null;
-	if (target.side === "before" && target.element === matrixItems[0] && matrixStackElement) {
+	if (
+		target.side === "before" &&
+		target.element === matrixItems[0] &&
+		matrixStackElement
+	) {
 		return { ...target, element: matrixStackElement };
 	}
 	return target;
@@ -734,7 +800,9 @@ function getMatrixDropTarget(event: DragEvent): DropTarget | null {
 
 function getVectorDropTarget(event: DragEvent): DropTarget | null {
 	const vectorLabels = Array.from(
-		stackElement.querySelectorAll<HTMLElement>(".vector-column-label[data-vector-column-id]")
+		stackElement.querySelectorAll<HTMLElement>(
+			".vector-column-label[data-vector-column-id]",
+		),
 	);
 	return getSortableDropTarget(event, vectorLabels, "vectorColumnId");
 }
@@ -742,7 +810,7 @@ function getVectorDropTarget(event: DragEvent): DropTarget | null {
 function getSortableDropTarget(
 	event: DragEvent,
 	items: HTMLElement[],
-	datasetKey: "matrixId" | "vectorColumnId"
+	datasetKey: "matrixId" | "vectorColumnId",
 ): DropTarget | null {
 	if (items.length === 0) return null;
 
@@ -752,7 +820,8 @@ function getSortableDropTarget(
 
 	for (const item of items) {
 		const rect = item.getBoundingClientRect();
-		const side = event.clientX < rect.left + rect.width / 2 ? "before" : "after";
+		const side =
+			event.clientX < rect.left + rect.width / 2 ? "before" : "after";
 		const edge = side === "before" ? rect.left : rect.right;
 		const distance = Math.abs(event.clientX - edge);
 		if (distance < nearestDistance) {
@@ -767,10 +836,11 @@ function getSortableDropTarget(
 }
 
 function getVectorSourceElement(target: HTMLElement): HTMLElement | null {
-	const vectorId = target.closest<HTMLElement>("[data-vector-column-id]")?.dataset.vectorColumnId;
+	const vectorId = target.closest<HTMLElement>("[data-vector-column-id]")
+		?.dataset.vectorColumnId;
 	if (!vectorId) return null;
 	return stackElement.querySelector<HTMLElement>(
-		`.vector-column-label[data-vector-column-id="${cssEscape(vectorId)}"]`
+		`.vector-column-label[data-vector-column-id="${cssEscape(vectorId)}"]`,
 	);
 }
 
@@ -786,14 +856,17 @@ function clearDropIndicator(): void {
 	dropIndicatorElement = null;
 }
 
-function setDraggingElement(element: HTMLElement | null, event: DragEvent): void {
+function setDraggingElement(
+	element: HTMLElement | null,
+	event: DragEvent,
+): void {
 	clearDraggingElement();
 	if (!element) return;
 	element.dataset.dragging = "true";
 	if (element.dataset.vectorColumnId) {
 		stackElement
 			.querySelectorAll<HTMLElement>(
-				`.vector-expression [data-vector-column-id="${cssEscape(element.dataset.vectorColumnId)}"]`
+				`.vector-expression [data-vector-column-id="${cssEscape(element.dataset.vectorColumnId)}"]`,
 			)
 			.forEach((item) => {
 				item.dataset.dragging = "true";
@@ -804,13 +877,13 @@ function setDraggingElement(element: HTMLElement | null, event: DragEvent): void
 		event.dataTransfer.effectAllowed = "move";
 		event.dataTransfer.setData(
 			"text/plain",
-			element.dataset.matrixId ?? element.dataset.vectorColumnId ?? ""
+			element.dataset.matrixId ?? element.dataset.vectorColumnId ?? "",
 		);
 		const preview = createDragPreview(element);
 		event.dataTransfer.setDragImage(
 			preview,
 			getDragOffsetX(element, event, preview),
-			getDragOffsetY(element, event, preview)
+			getDragOffsetY(element, event, preview),
 		);
 	}
 }
@@ -837,7 +910,7 @@ function createDragPreview(element: HTMLElement): HTMLElement {
 		position: "fixed",
 		top: "-10000px",
 		left: "-10000px",
-		pointerEvents: "none"
+		pointerEvents: "none",
 	});
 	document.body.append(preview);
 	draggedPreviewElement = preview;
@@ -847,7 +920,9 @@ function createDragPreview(element: HTMLElement): HTMLElement {
 function cloneDragPreview(element: HTMLElement): HTMLElement {
 	const preview = element.cloneNode(true) as HTMLElement;
 	preview.removeAttribute("id");
-	preview.querySelectorAll("[id]").forEach((child) => child.removeAttribute("id"));
+	preview
+		.querySelectorAll("[id]")
+		.forEach((child) => child.removeAttribute("id"));
 	return preview;
 }
 
@@ -869,7 +944,7 @@ function createVectorDragPreview(vectorId: string): HTMLElement {
 			.slice(0, workspace.dimension)
 			.map(
 				(component) =>
-					`<output class="vector-drag-preview-cell">${escapeHtml(component)}</output>`
+					`<output class="vector-drag-preview-cell">${escapeHtml(component)}</output>`,
 			)
 			.join("")}
     </div>
@@ -877,19 +952,32 @@ function createVectorDragPreview(vectorId: string): HTMLElement {
 	return preview;
 }
 
-function getDragOffsetX(element: HTMLElement, event: DragEvent, preview: HTMLElement): number {
+function getDragOffsetX(
+	element: HTMLElement,
+	event: DragEvent,
+	preview: HTMLElement,
+): number {
 	const rect = element.getBoundingClientRect();
 	const previewRect = preview.getBoundingClientRect();
 	const x = event.clientX - rect.left;
-	if (!element.dataset.vectorColumnId) return Math.max(0, Math.min(rect.width, x));
-	return Math.max(0, Math.min(previewRect.width, (previewRect.width - rect.width) / 2 + x));
+	if (!element.dataset.vectorColumnId)
+		return Math.max(0, Math.min(rect.width, x));
+	return Math.max(
+		0,
+		Math.min(previewRect.width, (previewRect.width - rect.width) / 2 + x),
+	);
 }
 
-function getDragOffsetY(element: HTMLElement, event: DragEvent, preview: HTMLElement): number {
+function getDragOffsetY(
+	element: HTMLElement,
+	event: DragEvent,
+	preview: HTMLElement,
+): number {
 	const rect = element.getBoundingClientRect();
 	const previewRect = preview.getBoundingClientRect();
 	const y = event.clientY - rect.top;
-	if (!element.dataset.vectorColumnId) return Math.max(0, Math.min(rect.height, y));
+	if (!element.dataset.vectorColumnId)
+		return Math.max(0, Math.min(rect.height, y));
 	return Math.max(0, Math.min(previewRect.height, y));
 }
 
@@ -951,7 +1039,9 @@ function cssEscape(value: string): string {
 
 function formatNumber(value: number): string {
 	const rounded = Math.abs(value) < 0.000001 ? 0 : value;
-	return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(3).replace(/\.?0+$/, "");
+	return Number.isInteger(rounded)
+		? String(rounded)
+		: rounded.toFixed(3).replace(/\.?0+$/, "");
 }
 
 function updateAnimationHighlight(now: number): void {
@@ -963,21 +1053,32 @@ function updateAnimationHighlight(now: number): void {
 					0,
 					Math.min(
 						1,
-						((state.animation.status === "paused" ? state.animation.pausedAt : now) -
+						((state.animation.status === "paused"
+							? state.animation.pausedAt
+							: now) -
 							state.animation.startedAt) /
-							Math.max(1, getAnimationDuration(workspace))
-					)
+							Math.max(1, getAnimationDuration(workspace)),
+					),
 				)
 			: null;
-	stackElement.querySelectorAll<HTMLElement>(".matrix-item[data-matrix-id]").forEach((item) => {
-		const isActive =
-			composedProgress !== null ? true : item.dataset.matrixId === activeStep?.matrixId;
-		const progress = composedProgress ?? (isActive && activeStep ? activeStep.progress : 0);
-		item.toggleAttribute("data-active-step", isActive);
-		if (isActive) item.setAttribute("aria-current", "step");
-		else item.removeAttribute("aria-current");
-		item.style.setProperty("--step-progress", `${Math.max(0, Math.min(1, progress)) * 100}%`);
-	});
+	stackElement
+		.querySelectorAll<HTMLElement>(".matrix-item[data-matrix-id]")
+		.forEach((item) => {
+			const isActive =
+				composedProgress !== null
+					? true
+					: item.dataset.matrixId === activeStep?.matrixId;
+			const progress =
+				composedProgress ??
+				(isActive && activeStep ? activeStep.progress : 0);
+			item.toggleAttribute("data-active-step", isActive);
+			if (isActive) item.setAttribute("aria-current", "step");
+			else item.removeAttribute("aria-current");
+			item.style.setProperty(
+				"--step-progress",
+				`${Math.max(0, Math.min(1, progress)) * 100}%`,
+			);
+		});
 }
 
 function updateResultOutputs(): void {
@@ -987,14 +1088,20 @@ function updateResultOutputs(): void {
 		const transformed = applyMatrixToVector(
 			workspace.dimension,
 			totalTransform,
-			vector.components
+			vector.components,
 		);
-		for (let componentIndex = 0; componentIndex < workspace.dimension; componentIndex += 1) {
+		for (
+			let componentIndex = 0;
+			componentIndex < workspace.dimension;
+			componentIndex += 1
+		) {
 			const output = stackElement.querySelector<HTMLOutputElement>(
-				`output[data-result-vector-index="${vectorIndex}"][data-result-component-index="${componentIndex}"]`
+				`output[data-result-vector-index="${vectorIndex}"][data-result-component-index="${componentIndex}"]`,
 			);
 			if (output) {
-				const formattedValue = formatNumber(transformed[componentIndex] ?? 0);
+				const formattedValue = formatNumber(
+					transformed[componentIndex] ?? 0,
+				);
 				output.value = formattedValue;
 				output.textContent = formattedValue;
 			}
@@ -1024,7 +1131,7 @@ if (import.meta.env.PROD && "serviceWorker" in navigator) {
 	window.addEventListener("load", () => {
 		const baseUrl = new URL(import.meta.env.BASE_URL, window.location.href);
 		void navigator.serviceWorker.register(new URL("sw.js", baseUrl), {
-			scope: baseUrl.pathname
+			scope: baseUrl.pathname,
 		});
 	});
 }

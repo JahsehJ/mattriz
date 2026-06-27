@@ -5,7 +5,7 @@ import tseslint from "typescript-eslint";
 
 export default tseslint.config(
 	{
-		ignores: ["coverage/", "dist/"]
+		ignores: ["coverage/", "dist/"],
 	},
 	eslint.configs.recommended,
 	{
@@ -14,19 +14,19 @@ export default tseslint.config(
 		languageOptions: {
 			globals: {
 				...globals.browser,
-				...globals.node
+				...globals.node,
 			},
 			parserOptions: {
 				projectService: true,
-				tsconfigRootDir: import.meta.dirname
-			}
-		}
+				tsconfigRootDir: import.meta.dirname,
+			},
+		},
 	},
 	{
 		files: ["public/sw.js"],
 		languageOptions: {
-			globals: globals.serviceworker
-		}
+			globals: globals.serviceworker,
+		},
 	},
-	prettier
+	prettier,
 );

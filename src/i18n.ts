@@ -38,7 +38,8 @@ const en = {
 	applyDescription: "Animate the matrices applied to your vectors and grid.",
 	pauseDescription: "Pause an animation or continue from the same point.",
 	resetDescription: "Return the transformation to the identity matrix.",
-	methodDescription: "Animate matrices one at a time or as one composed transform.",
+	methodDescription:
+		"Animate matrices one at a time or as one composed transform.",
 	basisDescription: "Show or hide the transformed basis vectors.",
 	addDescription: "Add an editable matrix or vector to the equation.",
 	gestures: "Canvas & equation gestures",
@@ -67,7 +68,7 @@ const en = {
 	inputVectorColumns: "Input vector columns",
 	transformedVector: "{label} transformed",
 	transformedVectorMatrix: "Transformed vector matrix",
-	transformedVectorColumns: "Transformed vector columns"
+	transformedVectorColumns: "Transformed vector columns",
 } as const;
 
 export type MessageKey = keyof typeof en;
@@ -115,7 +116,8 @@ const zhHant: Messages = {
 	addDescription: "在方程式中加入可編輯的矩陣或向量。",
 	gestures: "畫布與方程式操作",
 	reorder: "重新排序",
-	reorderDescription: "拖曳矩陣或向量欄以重新排序。每個矩陣的滑桿可設定該步驟的時間。",
+	reorderDescription:
+		"拖曳矩陣或向量欄以重新排序。每個矩陣的滑桿可設定該步驟的時間。",
 	navigate: "瀏覽",
 	navigateDescription:
 		"在 2D 中拖曳以平移；在 3D 中拖曳以環繞，按右鍵拖曳以平移。捲動或以雙指縮放。",
@@ -138,20 +140,20 @@ const zhHant: Messages = {
 	inputVectorColumns: "輸入向量欄",
 	transformedVector: "變換後的 {label}",
 	transformedVectorMatrix: "變換後的向量矩陣",
-	transformedVectorColumns: "變換後的向量欄"
+	transformedVectorColumns: "變換後的向量欄",
 };
 
 const messages: Record<Locale, Messages> = {
 	en,
-	"zh-Hant": zhHant
+	"zh-Hant": zhHant,
 };
 
 export function translate(
 	locale: Locale,
 	key: MessageKey,
-	values: Record<string, string | number> = {}
+	values: Record<string, string | number> = {},
 ): string {
 	return messages[locale][key].replace(/\{(\w+)\}/g, (_, name: string) =>
-		String(values[name] ?? `{${name}}`)
+		String(values[name] ?? `{${name}}`),
 	);
 }

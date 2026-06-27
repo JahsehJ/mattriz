@@ -7,8 +7,12 @@ describe("translations", () => {
 	});
 
 	it("interpolates values in translated accessibility labels", () => {
-		expect(translate("zh-Hant", "matrixEntry", { label: "A", row: 2, column: 3 })).toBe(
-			"A 第 2 列第 3 欄"
-		);
+		expect(
+			translate("zh-Hant", "matrixEntry", {
+				label: "A",
+				row: 2,
+				column: 3,
+			}),
+		).toBe("A 第 2 列第 3 欄");
 	});
 });
