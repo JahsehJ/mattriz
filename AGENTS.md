@@ -57,7 +57,7 @@ The grid is persistent geometry rather than dense line buffers recreated per fra
 
 OrbitControls provide rotate, pan, and zoom in 3D. In 2D, left drag pans and wheel or pinch gestures zoom. Only the controls for the active dimension are enabled.
 
-Three-dimensional calculations and scene geometry use the same right-handed `(x, y, z)` coordinates without conversion. The perspective camera uses Z-up, while the orthographic camera retains Y-up to view the XY plane. Do not change `THREE.Object3D.DEFAULT_UP` globally without accounting for both cameras. The invariants and rationale are documented in `docs/coordinate-systems.md`.
+Scene geometry uses mathematical coordinates without conversion. The perspective camera is Z-up, while the orthographic camera remains Y-up to view the XY plane; do not set `THREE.Object3D.DEFAULT_UP` globally.
 
 ## Known bug
 
