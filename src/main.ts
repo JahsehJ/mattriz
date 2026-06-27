@@ -45,7 +45,7 @@ root.innerHTML = `
         <button type="button" data-dimension="2">2D</button>
         <button type="button" data-dimension="3">3D</button>
       </div>
-      <div class="view-tools" role="toolbar" aria-label="${t("viewControls")}" data-i18n-aria="viewControls">
+      <div class="view-tools" role="toolbar" aria-label="${t("applicationControls")}" data-i18n-aria="applicationControls">
         <select name="language" data-language aria-label="${t("language")}" data-i18n-aria="language">
           <option value="en">English</option>
           <option value="zh-Hant">繁體中文</option>
