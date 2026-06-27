@@ -87,7 +87,7 @@ root.innerHTML = `
           <p class="about-eyebrow" data-i18n="quickReference">${t("quickReference")}</p>
           <h1 id="about-title" data-i18n="aboutMattriz">${t("aboutMattriz")}</h1>
         </div>
-        <button class="about-close" type="button" data-action="close-about" aria-label="${t("closeAbout")}" title="${t("close")}" data-i18n-aria="closeAbout" data-i18n-title="close">${renderCloseIcon()}</button>
+        <button class="about-close" type="button" data-action="close-about" aria-label="${t("close")}" title="${t("close")}" data-i18n-aria="close" data-i18n-title="close">${renderCloseIcon()}</button>
       </div>
       <p class="about-intro" data-i18n="intro">${t("intro")}</p>
       <div class="control-guide" role="table" aria-label="${t("mattrizControls")}" data-i18n-aria="mattrizControls">
