@@ -51,6 +51,9 @@ and Three.js concerns in `scene.ts`.
 Scene geometry uses mathematical coordinates directly. The 3D camera is Z-up;
 the 2D camera views the XY plane with Y-up.
 
+Rendering resource ownership and performance guardrails are documented in
+[`docs/rendering-performance.md`](docs/rendering-performance.md).
+
 ## LLM disclosure
 
 Mattriz uses LLMs to assist with implementation, analysis, and documentation.
