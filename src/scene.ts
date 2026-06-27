@@ -14,7 +14,7 @@ const BASIS_ARROW_Z = 0.035;
 const USER_ARROW_Z = 0.055;
 const AXIS_LABEL_DISTANCE = 1.24;
 const AXIS_LABEL_SIZE = 0.34;
-const VECTOR_LABEL_DISTANCE = 1.12;
+const VECTOR_LABEL_OFFSET = 0.2;
 const VECTOR_LABEL_SIZE = 0.34;
 const DEFAULT_3D_CAMERA_POSITION: Vec3 = [7, 7, 7];
 
@@ -269,10 +269,11 @@ export class MatrixScene {
 
   private updateVectorLabel(label: THREE.Sprite, dimension: Dimension, target: Vec3): void {
     const endpoint = toThree(target);
-    label.visible = endpoint.lengthSq() >= 0.000001;
+    const length = endpoint.length();
+    label.visible = length >= 0.001;
     if (!label.visible) return;
 
-    endpoint.multiplyScalar(VECTOR_LABEL_DISTANCE);
+    endpoint.setLength(length + VECTOR_LABEL_OFFSET);
     if (dimension === 2) endpoint.z = USER_ARROW_Z + 0.02;
     label.position.copy(endpoint);
   }
