@@ -25,9 +25,14 @@ npm run dev
 
 ```sh
 npm test
+npm run lint
+npm run format:check
 npm run build
 npm audit
 ```
+
+Run `npm run format` to apply Prettier formatting, or `npm run check` to run
+all lint, format, test, and build checks.
 
 ## Architecture
 
