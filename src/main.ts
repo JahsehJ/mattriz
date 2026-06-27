@@ -12,7 +12,7 @@ import {
   getTotalTransform,
   getWorkspace
 } from "./state";
-import { Dimension, VectorValues, applyMatrixToVector, identityMatrix, parseFiniteNumber } from "./math";
+import { Dimension, VectorValues, applyMatrixToVector, identityMatrix, parseBoundedNumber } from "./math";
 import { Locale, MessageKey, translate } from "./i18n";
 
 const state: AppState = createInitialState();
@@ -29,6 +29,8 @@ let draggedElement: HTMLElement | null = null;
 let draggedPreviewElement: HTMLElement | null = null;
 let dropIndicatorElement: HTMLElement | null = null;
 let isInteractingWithInput = false;
+const maxAbsoluteInputValue = 100;
+const maxNumericInputLength = 16;
 const vectorColors = ["#f4b740", "#5bd8a6", "#ef6f6c", "#8fb4ff", "#d989ff", "#5ed5e8"];
 
 const app = document.querySelector<HTMLDivElement>("#app");
@@ -384,7 +386,7 @@ function updateNumericDraft({
   commit: (values: number[]) => void;
 }): void {
   draft[index] = value;
-  const parsed = draft.slice(0, count).map(parseFiniteNumber);
+  const parsed = draft.slice(0, count).map((entry) => parseBoundedNumber(entry, maxAbsoluteInputValue));
   const inputs = stackElement.querySelectorAll<HTMLInputElement>(inputSelector);
   inputs.forEach((input, inputIndex) => input.toggleAttribute("aria-invalid", parsed[inputIndex] === null));
 
@@ -531,6 +533,7 @@ function renderMatrixCard(matrix: MatrixNode): string {
           name="${inputName}"
           type="text"
           inputmode="decimal"
+          maxlength="${maxNumericInputLength}"
           autocomplete="off"
           value="${escapeHtml(value)}"
           data-matrix-id="${matrix.id}"
@@ -596,6 +599,7 @@ function renderVectorMatrix(): string {
           name="${inputName}"
           type="text"
           inputmode="decimal"
+          maxlength="${maxNumericInputLength}"
           autocomplete="off"
           value="${escapeHtml(value)}"
           data-vector-id="${vector.id}"

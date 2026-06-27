@@ -71,6 +71,11 @@ export function parseFiniteNumber(value: string): number | null {
   return Number.isFinite(next) ? next : null;
 }
 
+export function parseBoundedNumber(value: string, maxAbsoluteValue: number): number | null {
+  const next = parseFiniteNumber(value);
+  return next !== null && Math.abs(next) <= maxAbsoluteValue ? next : null;
+}
+
 export function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }

@@ -21,6 +21,8 @@ Large regions use semantic elements such as `main`, `section`, and `footer`; rep
 
 Duration slider input updates its state and visible value in place. It must not rebuild the equation tray because replacing the active range input interrupts its native pointer interaction. Native drag start is suppressed for the duration of any input pointer gesture so the draggable matrix does not take over slider adjustment or text selection.
 
+Matrix entries and vector components share one draft-validation-commit path. Input text is limited to 16 characters, and only finite values from -100 through 100 are committed; invalid drafts remain editable and are marked with `aria-invalid`.
+
 The visual language is based on a restrained mathematical scene: persistent grid lines, distinct axes, basis vectors, custom vectors, and limited surrounding UI. MathML represents read-only equation structure, while editable cells are HTML inputs.
 
 ## Data and animation model

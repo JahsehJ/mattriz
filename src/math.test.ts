@@ -8,6 +8,7 @@ import {
   multiply2,
   multiply3,
   identityMatrix,
+  parseBoundedNumber,
   parseFiniteNumber
 } from "./math";
 import {
@@ -47,6 +48,12 @@ describe("matrix math", () => {
     expect(parseFiniteNumber("")).toBe(0);
     expect(parseFiniteNumber("abc")).toBeNull();
     expect(parseFiniteNumber("Infinity")).toBeNull();
+  });
+
+  it("rejects finite values outside a configured bound", () => {
+    expect(parseBoundedNumber("100", 100)).toBe(100);
+    expect(parseBoundedNumber("-100", 100)).toBe(-100);
+    expect(parseBoundedNumber("100.01", 100)).toBeNull();
   });
 });
 
