@@ -45,22 +45,22 @@ root.innerHTML = `
         <button type="button" data-dimension="2">2D</button>
         <button type="button" data-dimension="3">3D</button>
       </div>
-      <div class="view-tools" role="toolbar" aria-label="${t("applicationControls")}" data-i18n-aria="applicationControls">
+      <div class="view-tools" role="group" aria-label="${t("applicationControls")}" data-i18n-aria="applicationControls">
         <select name="language" data-language aria-label="${t("language")}" data-i18n-aria="language">
           <option value="en">English</option>
           <option value="zh-Hant">繁體中文</option>
         </select>
-        <button type="button" data-action="reset-view" aria-label="${t("resetView")}" title="${t("resetView")}" data-i18n="resetView" data-i18n-aria="resetView" data-i18n-title="resetView">${t("resetView")}</button>
+        <button type="button" data-action="reset-view" data-i18n="resetView">${t("resetView")}</button>
         <button type="button" data-action="open-about" aria-haspopup="dialog" data-i18n="about">${t("about")}</button>
       </div>
     </section>
     <footer class="panel" aria-label="${t("controls")}" data-i18n-aria="controls">
-      <section class="control-cluster" aria-label="${t("controls")}" data-i18n-aria="controls">
+      <section class="control-cluster">
         <fieldset class="animation-block">
           <legend data-i18n="animation">${t("animation")}</legend>
           <div class="animation-body">
-            <div class="transport" role="toolbar" aria-label="${t("animationControls")}" data-i18n-aria="animationControls">
-              <button type="button" data-action="play" aria-label="${t("playback")}" data-i18n-aria="playback">${t("apply")}</button>
+            <div class="transport" role="group" aria-label="${t("animationControls")}" data-i18n-aria="animationControls">
+              <button type="button" data-action="play" aria-label="${t("applyTransform")}">${t("apply")}</button>
               <button type="button" data-action="reset" aria-label="${t("resetTransform")}" data-i18n="reset" data-i18n-aria="resetTransform">${t("reset")}</button>
             </div>
             <label class="mode-row" for="animation-mode">
@@ -431,7 +431,16 @@ function renderUi(): void {
 
   const playButton = root.querySelector<HTMLButtonElement>("[data-action='play']");
   if (playButton) {
-    playButton.textContent = t(state.animation.status === "playing" ? "pause" : state.animation.status === "paused" ? "resume" : "apply");
+    const playbackTextKey: MessageKey =
+      state.animation.status === "playing" ? "pause" : state.animation.status === "paused" ? "resume" : "apply";
+    const playbackLabelKey: MessageKey =
+      state.animation.status === "playing"
+        ? "pauseAnimation"
+        : state.animation.status === "paused"
+          ? "resumeAnimation"
+          : "applyTransform";
+    playButton.textContent = t(playbackTextKey);
+    playButton.setAttribute("aria-label", t(playbackLabelKey));
     playButton.dataset.playbackStatus = state.animation.status;
   }
   const basisCheckbox = root.querySelector<HTMLInputElement>("[data-action='toggle-basis']");
@@ -518,7 +527,7 @@ function renderMatrixCard(matrix: MatrixNode): string {
             <mi>${matrix.label}</mi>
           </math>
           <div class="matrix-actions">
-            <button type="button" data-action="delete-matrix" data-id="${matrix.id}" aria-label="${t("deleteMatrix", { label: matrix.label })}">${renderCloseIcon()}</button>
+            <button type="button" data-action="delete-matrix" data-id="${matrix.id}" aria-label="${t("deleteMatrix", { label: matrix.label })}" title="${t("deleteMatrix", { label: matrix.label })}">${renderCloseIcon()}</button>
           </div>
         </header>
         <div class="matrix-expression" role="group" aria-label="${t("matrixValues", { label: matrix.label })}">
@@ -549,7 +558,7 @@ function renderVectorMatrix(): string {
             ${renderVectorSymbol(vector.label)}
           </math>
           <span class="vector-color-label" aria-hidden="true"></span>
-          <button type="button" data-action="delete-vector" data-id="${vector.id}" aria-label="${t("deleteVector", { label: vector.label })}">${renderCloseIcon()}</button>
+          <button type="button" data-action="delete-vector" data-id="${vector.id}" aria-label="${t("deleteVector", { label: vector.label })}" title="${t("deleteVector", { label: vector.label })}">${renderCloseIcon()}</button>
         </div>
       `
     )
