@@ -18,6 +18,21 @@ const VECTOR_LABEL_DISTANCE = 1.12;
 const VECTOR_LABEL_SIZE = 0.34;
 const DEFAULT_3D_CAMERA_POSITION: Vec3 = [7, 7, 7];
 
+interface ArrowVisual {
+  group: THREE.Group;
+  shaft: THREE.Mesh;
+  head: THREE.Mesh;
+  basicMaterial: THREE.MeshBasicMaterial;
+  lambertMaterial: THREE.MeshLambertMaterial;
+}
+
+interface VectorVisual {
+  arrow: ArrowVisual;
+  label: THREE.Sprite;
+  labelText: string;
+  color: number;
+}
+
 export class MatrixScene {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene = new THREE.Scene();
@@ -33,6 +48,12 @@ export class MatrixScene {
   };
   private readonly axisLabels = createAxisLabels();
   private readonly root = new THREE.Group();
+  private readonly arrowGeometries = {
+    shaft: new THREE.CylinderGeometry(1, 1, 1, 16),
+    head: new THREE.ConeGeometry(1, 1, 24)
+  };
+  private readonly basisArrows = BASIS_COLORS.map((color) => this.createArrowVisual(color, 0));
+  private readonly vectorVisuals = new Map<string, VectorVisual>();
   private dimension: Dimension = 3;
   private activeControlsDimension: Dimension = 3;
   private viewportWidth = 0;
@@ -43,7 +64,7 @@ export class MatrixScene {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setClearColor(0x101416, 1);
 
-    this.root.add(this.gridGroup, this.axisLabels);
+    this.root.add(this.gridGroup, this.axisLabels, ...this.basisArrows.map((arrow) => arrow.group));
     this.gridGroup.add(this.gridPlanes.xy, this.gridPlanes.xz, this.gridPlanes.yz);
     this.scene.add(this.root);
     this.scene.add(new THREE.AmbientLight(0xffffff, 0.55));
@@ -113,9 +134,8 @@ export class MatrixScene {
     this.resize();
     this.dimension = state.dimension;
     this.updateGrid(state.dimension, state.transform);
-    this.clearDynamicObjects();
     this.updateAxisLabels(state.dimension, state.transform);
-    if (state.showBasis) this.drawBasis(state.dimension, state.transform);
+    this.updateBasis(state.dimension, state.transform, state.showBasis);
     this.drawVectors(state.dimension, state.transform, state.vectors);
     this.updateControls(state.dimension);
     this.renderer.render(this.scene, state.dimension === 2 ? this.orthoCamera : this.perspectiveCamera);
@@ -166,15 +186,6 @@ export class MatrixScene {
     this.gridGroup.matrix.copy(toMatrix4(dimension, matrix));
   }
 
-  private clearDynamicObjects(): void {
-    const keep = new Set<THREE.Object3D>([this.gridGroup, this.axisLabels]);
-    for (const child of [...this.root.children]) {
-      if (keep.has(child)) continue;
-      this.root.remove(child);
-      disposeObject(child);
-    }
-  }
-
   private updateAxisLabels(dimension: Dimension, matrix: MatrixValues): void {
     const axes: Vec3[] = [
       [1, 0, 0],
@@ -198,46 +209,95 @@ export class MatrixScene {
     });
   }
 
-  private drawBasis(dimension: Dimension, matrix: MatrixValues): void {
+  private updateBasis(dimension: Dimension, matrix: MatrixValues, visible: boolean): void {
     const basis: Vec3[] = [
       [1, 0, 0],
       [0, 1, 0],
       [0, 0, 1]
     ];
-    basis.slice(0, dimension).forEach((axis, index) => {
-      this.addArrow(transformPoint(dimension, matrix, axis), BASIS_COLORS[index], BASIS_ARROW_Z, 0);
+    this.basisArrows.forEach((arrow, index) => {
+      if (!visible || index >= dimension) {
+        arrow.group.visible = false;
+        return;
+      }
+      this.updateArrow(arrow, transformPoint(dimension, matrix, basis[index]), dimension, BASIS_ARROW_Z);
     });
   }
 
   private drawVectors(
     dimension: Dimension,
     matrix: MatrixValues,
-    vectors: { components: VectorValues; color: string; label: string }[]
+    vectors: { id: string; components: VectorValues; color: string; label: string }[]
   ): void {
+    const activeIds = new Set(vectors.map((vector) => vector.id));
+    for (const [id, visual] of this.vectorVisuals) {
+      if (activeIds.has(id)) continue;
+      this.root.remove(visual.arrow.group, visual.label);
+      disposeArrowVisual(visual.arrow);
+      disposeLabel(visual.label);
+      this.vectorVisuals.delete(id);
+    }
+
     vectors.forEach((vector) => {
       const transformed = applyMatrixToVector(dimension, matrix, vector.components);
       const color = new THREE.Color(vector.color).getHex();
-      this.addArrow(transformed, color, USER_ARROW_Z, 1);
-      this.addVectorLabel(dimension, transformed, vector.label, color);
+      let visual = this.vectorVisuals.get(vector.id);
+      if (!visual) {
+        visual = {
+          arrow: this.createArrowVisual(color, 1),
+          label: createTextLabel(vector.label, color, VECTOR_LABEL_SIZE),
+          labelText: vector.label,
+          color
+        };
+        this.vectorVisuals.set(vector.id, visual);
+        this.root.add(visual.arrow.group, visual.label);
+      }
+
+      if (visual.labelText !== vector.label || visual.color !== color) {
+        updateTextLabel(visual.label, vector.label, color);
+        visual.arrow.basicMaterial.color.setHex(color);
+        visual.arrow.lambertMaterial.color.setHex(color);
+        visual.labelText = vector.label;
+        visual.color = color;
+      }
+
+      this.updateArrow(visual.arrow, transformed, dimension, USER_ARROW_Z);
+      this.updateVectorLabel(visual.label, dimension, transformed);
     });
   }
 
-  private addVectorLabel(dimension: Dimension, target: Vec3, text: string, color: number): void {
+  private updateVectorLabel(label: THREE.Sprite, dimension: Dimension, target: Vec3): void {
     const endpoint = toThree(target);
-    if (endpoint.lengthSq() < 0.000001) return;
+    label.visible = endpoint.lengthSq() >= 0.000001;
+    if (!label.visible) return;
 
     endpoint.multiplyScalar(VECTOR_LABEL_DISTANCE);
     if (dimension === 2) endpoint.z = USER_ARROW_Z + 0.02;
-
-    const label = createTextLabel(text, color, VECTOR_LABEL_SIZE);
     label.position.copy(endpoint);
-    this.root.add(label);
   }
 
-  private addArrow(target: Vec3, color: number, zLift: number, depthBias: number): void {
+  private createArrowVisual(color: number, depthBias: number): ArrowVisual {
+    const materialOptions = {
+      color,
+      polygonOffset: depthBias !== 0,
+      polygonOffsetFactor: -depthBias,
+      polygonOffsetUnits: -depthBias
+    };
+    const basicMaterial = new THREE.MeshBasicMaterial(materialOptions);
+    const lambertMaterial = new THREE.MeshLambertMaterial(materialOptions);
+    const group = new THREE.Group();
+    const shaft = new THREE.Mesh(this.arrowGeometries.shaft, lambertMaterial);
+    const head = new THREE.Mesh(this.arrowGeometries.head, lambertMaterial);
+    group.add(shaft, head);
+    group.renderOrder = depthBias;
+    return { group, shaft, head, basicMaterial, lambertMaterial };
+  }
+
+  private updateArrow(arrow: ArrowVisual, target: Vec3, dimension: Dimension, zLift: number): void {
     const end = toThree(target);
     const length = end.length();
-    if (length < 0.001) return;
+    arrow.group.visible = length >= 0.001;
+    if (!arrow.group.visible) return;
 
     const direction = end.clone().normalize();
     const thicknessScale = Math.min(1, length / 0.25);
@@ -245,30 +305,16 @@ export class MatrixScene {
     const headLength = Math.min(ARROW_SHAFT_RADIUS * 4, length * 0.4);
     const headRadius = ARROW_SHAFT_RADIUS * 2.7 * thicknessScale;
     const shaftLength = length - headLength;
-    const materialOptions = {
-      color,
-      polygonOffset: depthBias !== 0,
-      polygonOffsetFactor: -depthBias,
-      polygonOffsetUnits: -depthBias
-    };
-    const material =
-      this.dimension === 2
-        ? new THREE.MeshBasicMaterial(materialOptions)
-        : new THREE.MeshLambertMaterial(materialOptions);
-    const arrow = new THREE.Group();
+    const material = dimension === 2 ? arrow.basicMaterial : arrow.lambertMaterial;
 
-    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(shaftRadius, shaftRadius, shaftLength, 16), material);
-    shaft.position.y = shaftLength / 2;
-    arrow.add(shaft);
-
-    const head = new THREE.Mesh(new THREE.ConeGeometry(headRadius, headLength, 24), material);
-    head.position.y = shaftLength + headLength / 2;
-    arrow.add(head);
-
-    arrow.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction);
-    arrow.renderOrder = depthBias;
-    if (this.dimension === 2) arrow.position.z = zLift;
-    this.root.add(arrow);
+    arrow.shaft.material = material;
+    arrow.shaft.scale.set(shaftRadius, shaftLength, shaftRadius);
+    arrow.shaft.position.y = shaftLength / 2;
+    arrow.head.material = material;
+    arrow.head.scale.set(headRadius, headLength, headRadius);
+    arrow.head.position.y = shaftLength + headLength / 2;
+    arrow.group.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction);
+    arrow.group.position.set(0, 0, dimension === 2 ? zLift : 0);
   }
 }
 
@@ -307,18 +353,7 @@ function createTextLabel(text: string, color: number, size: number): THREE.Sprit
   const canvas = document.createElement("canvas");
   canvas.width = 256;
   canvas.height = 128;
-  const context = canvas.getContext("2d");
-
-  if (context) {
-    context.font = "700 76px Inter, system-ui, sans-serif";
-    context.textAlign = "center";
-    context.textBaseline = "middle";
-    context.lineWidth = 10;
-    context.strokeStyle = "rgba(16, 20, 22, 0.92)";
-    context.strokeText(text, 128, 64);
-    context.fillStyle = `#${color.toString(16).padStart(6, "0")}`;
-    context.fillText(text, 128, 64);
-  }
+  drawLabel(canvas, text, color);
 
   const material = new THREE.SpriteMaterial({
     map: new THREE.CanvasTexture(canvas),
@@ -330,6 +365,28 @@ function createTextLabel(text: string, color: number, size: number): THREE.Sprit
   label.scale.set(size * 2, size, 1);
   label.renderOrder = 3;
   return label;
+}
+
+function updateTextLabel(label: THREE.Sprite, text: string, color: number): void {
+  const texture = label.material.map;
+  if (!texture || !(texture.image instanceof HTMLCanvasElement)) return;
+  drawLabel(texture.image, text, color);
+  texture.needsUpdate = true;
+}
+
+function drawLabel(canvas: HTMLCanvasElement, text: string, color: number): void {
+  const context = canvas.getContext("2d");
+  if (!context) return;
+
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.font = "700 76px Inter, system-ui, sans-serif";
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.lineWidth = 10;
+  context.strokeStyle = "rgba(16, 20, 22, 0.92)";
+  context.strokeText(text, 128, 64);
+  context.fillStyle = `#${color.toString(16).padStart(6, "0")}`;
+  context.fillText(text, 128, 64);
 }
 
 function createGridGeometry(plane: "xy" | "xz" | "yz", center: boolean): THREE.BufferGeometry {
@@ -381,24 +438,12 @@ function toMatrix4(dimension: Dimension, matrix: MatrixValues): THREE.Matrix4 {
   return result;
 }
 
-function disposeObject(object: THREE.Object3D): void {
-  object.traverse((child) => {
-    if (child instanceof THREE.Mesh || child instanceof THREE.LineSegments) {
-      child.geometry.dispose();
-      disposeMaterial(child.material);
-    }
-    if (child instanceof THREE.Sprite) {
-      child.material.map?.dispose();
-      child.material.dispose();
-    }
-  });
+function disposeArrowVisual(arrow: ArrowVisual): void {
+  arrow.basicMaterial.dispose();
+  arrow.lambertMaterial.dispose();
 }
 
-function disposeMaterial(material: THREE.Material | THREE.Material[]): void {
-  if (Array.isArray(material)) {
-    material.forEach((item) => item.dispose());
-    return;
-  }
-
-  material.dispose();
+function disposeLabel(label: THREE.Sprite): void {
+  label.material.map?.dispose();
+  label.material.dispose();
 }
