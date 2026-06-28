@@ -14,6 +14,10 @@ import { RenderState } from "./state";
 const GRID_EXTENT = 240;
 const GRID_STEP = 1;
 const MAX_PAN_RADIUS = GRID_EXTENT * 0.35;
+const MIN_PERSPECTIVE_DISTANCE = 2;
+const MAX_PERSPECTIVE_DISTANCE = 48;
+const MIN_ORTHOGRAPHIC_ZOOM = 0.25;
+const MAX_ORTHOGRAPHIC_ZOOM = 4;
 const GRID_COLOR = 0x45616a;
 const GRID_CENTER_COLOR = 0x8fb4bd;
 const BASIS_COLORS = [0xff4d43, 0x43d675, 0x5298ff];
@@ -126,8 +130,8 @@ export class MatrixScene {
 		this.perspectiveControls.enableDamping = true;
 		this.perspectiveControls.dampingFactor = 0.08;
 		this.perspectiveControls.screenSpacePanning = true;
-		this.perspectiveControls.minDistance = 2;
-		this.perspectiveControls.maxDistance = 28;
+		this.perspectiveControls.minDistance = MIN_PERSPECTIVE_DISTANCE;
+		this.perspectiveControls.maxDistance = MAX_PERSPECTIVE_DISTANCE;
 		this.perspectiveControls.maxTargetRadius = MAX_PAN_RADIUS;
 
 		this.orthoControls = new OrbitControls(this.orthoCamera, this.canvas);
@@ -144,8 +148,8 @@ export class MatrixScene {
 			ONE: THREE.TOUCH.PAN,
 			TWO: THREE.TOUCH.DOLLY_PAN,
 		};
-		this.orthoControls.minZoom = 0.45;
-		this.orthoControls.maxZoom = 4;
+		this.orthoControls.minZoom = MIN_ORTHOGRAPHIC_ZOOM;
+		this.orthoControls.maxZoom = MAX_ORTHOGRAPHIC_ZOOM;
 		this.orthoControls.maxTargetRadius = MAX_PAN_RADIUS;
 		this.orthoControls.enabled = false;
 
