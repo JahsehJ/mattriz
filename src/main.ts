@@ -80,7 +80,7 @@ root.innerHTML = `
         </select>
         <button type="button" data-action="reset-view" data-i18n="resetView">${t("resetView")}</button>
         <button type="button" data-action="open-reset-workspace" aria-haspopup="dialog" data-i18n="resetWorkspace">${t("resetWorkspace")}</button>
-        <button type="button" data-action="share" data-i18n="share">${t("share")}</button>
+        <button type="button" data-action="share" aria-haspopup="dialog" data-i18n="share">${t("share")}</button>
         <button type="button" data-action="open-about" aria-haspopup="dialog" data-i18n="about">${t("about")}</button>
         <span class="share-status" data-share-status role="status" aria-live="polite"></span>
       </div>
@@ -177,6 +177,14 @@ root.innerHTML = `
         <small class="about-version">v${appVersion}</small>
       </footer>
     </dialog>
+    <dialog class="share-dialog" aria-labelledby="share-dialog-title">
+      <div class="share-dialog-content">
+        <h1 id="share-dialog-title" data-i18n="shareCopiedTitle">${t("shareCopiedTitle")}</h1>
+        <p data-i18n="shareCopiedDescription">${t("shareCopiedDescription")}</p>
+        <input class="share-link" type="text" name="share-link" readonly data-share-link aria-label="${t("shareLink")}" data-i18n-aria="shareLink" />
+        <button type="button" data-action="close-share-dialog" data-i18n="close">${t("close")}</button>
+      </div>
+    </dialog>
     <dialog class="share-error-dialog" aria-labelledby="share-error-title">
       <div class="share-error-content">
         <h1 id="share-error-title" data-i18n="invalidShareTitle">${t("invalidShareTitle")}</h1>
@@ -204,6 +212,8 @@ const animationMode = root.querySelector<HTMLSelectElement>(
 );
 const language = root.querySelector<HTMLSelectElement>("[data-language]");
 const aboutDialog = root.querySelector<HTMLDialogElement>(".about-dialog");
+const shareDialog = root.querySelector<HTMLDialogElement>(".share-dialog");
+const shareLink = root.querySelector<HTMLInputElement>("[data-share-link]");
 const shareErrorDialog = root.querySelector<HTMLDialogElement>(
 	".share-error-dialog",
 );
@@ -216,6 +226,8 @@ if (
 	!animationMode ||
 	!language ||
 	!aboutDialog ||
+	!shareDialog ||
+	!shareLink ||
 	!shareErrorDialog ||
 	!resetWorkspaceDialog
 ) {
@@ -224,6 +236,8 @@ if (
 const stackElement = matrixStack;
 const animationModeElement = animationMode;
 const languageElement = language;
+const shareDialogElement = shareDialog;
+const shareLinkElement = shareLink;
 const shareErrorDialogElement = shareErrorDialog;
 const resetWorkspaceDialogElement = resetWorkspaceDialog;
 
@@ -233,6 +247,10 @@ root.addEventListener("click", (event) => {
 	const target = event.target as HTMLElement;
 	if (target === aboutDialog) {
 		aboutDialog.close();
+		return;
+	}
+	if (target === shareDialog) {
+		shareDialog.close();
 		return;
 	}
 	if (target === shareErrorDialog) return;
@@ -267,6 +285,7 @@ root.addEventListener("click", (event) => {
 	if (action === "close-reset-workspace") resetWorkspaceDialogElement.close();
 	if (action === "confirm-reset-workspace") resetWorkspace();
 	if (action === "share") void shareWorkspace();
+	if (action === "close-share-dialog") shareDialog.close();
 	if (action === "open-about") aboutDialog.showModal();
 	if (action === "close-about") aboutDialog.close();
 	if (action === "close-share-error") shareErrorDialog.close();
@@ -759,6 +778,9 @@ async function shareWorkspace(): Promise<void> {
 		await navigator.clipboard.writeText(url.href);
 		window.history.replaceState(window.history.state, "", url);
 		setShareStatus("copied");
+		shareLinkElement.value = url.href;
+		shareDialogElement.showModal();
+		shareLinkElement.select();
 	} catch (error) {
 		setShareStatus(
 			error instanceof Error &&
