@@ -90,13 +90,14 @@ export function createMatrixNode(
 	dimension: Dimension,
 	label: string,
 	values?: MatrixValues,
+	draftValues?: string[],
 ): MatrixNode {
 	const nextValues = values ?? identityMatrix(dimension);
 	return {
 		id: crypto.randomUUID(),
 		label,
 		values: nextValues,
-		draftValues: Array.from(nextValues, String),
+		draftValues: draftValues ?? Array.from(nextValues, String),
 		durationMs: 900,
 	};
 }
@@ -105,13 +106,16 @@ export function createVectorNode(
 	dimension: Dimension,
 	label: string,
 	color: string,
+	components?: VectorValues,
+	draftComponents?: string[],
 ): VectorNode {
-	const components: VectorValues = dimension === 2 ? [1, 1] : [1, 1, 1];
+	const nextComponents: VectorValues =
+		components ?? (dimension === 2 ? [1, 1] : [1, 1, 1]);
 	return {
 		id: crypto.randomUUID(),
 		label,
-		components,
-		draftComponents: Array.from(components, String),
+		components: nextComponents,
+		draftComponents: draftComponents ?? Array.from(nextComponents, String),
 		color,
 	};
 }

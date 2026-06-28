@@ -8,6 +8,8 @@ transformations.
 - 2x2 and 3x3 matrix workspaces.
 - Ordered, editable, drag-reorderable matrix stacks.
 - Editable and reorderable custom vector columns.
+- Dimension-aware matrix presets and computed real eigenbasis vectors.
+- Exact-looking entry expressions with fractions, powers, radicals, and trigonometry.
 - Step and composed-transform animation with per-matrix durations.
 - MathML equation structure with HTML numeric inputs.
 - Orthographic 2D and perspective 3D cameras with independent session state.
@@ -50,6 +52,10 @@ vite.config.ts    build configuration and Three.js vendor chunking
 The UI uses direct DOM rendering without a frontend framework. Numerical
 operations stay in `math.ts`, animation and workspace derivation in `state.ts`,
 and Three.js concerns in `scene.ts`.
+
+Matrix and vector entries accept ASCII expressions such as `1/2`,
+`sqrt(2)/2`, `2^(-3)`, and `cos(pi/4)`. Trigonometric arguments use radians;
+implicit multiplication is not supported.
 
 Scene geometry uses mathematical coordinates directly. The 3D camera is Z-up;
 the 2D camera views the XY plane with Y-up.

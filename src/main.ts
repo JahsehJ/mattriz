@@ -18,10 +18,13 @@ import {
 import {
 	Dimension,
 	VectorValues,
+	getRealEigenbasis,
+	getRepresentativeRealEigenvector,
 	identityMatrix,
-	parseBoundedNumber,
 } from "./math";
 import { Locale, MessageKey, translate } from "./i18n";
+import { evaluateBoundedExpression } from "./expression";
+import { MatrixPreset, getMatrixPresets } from "./presets";
 
 const state: AppState = createInitialState();
 const appVersion = packageJson.version;
@@ -40,7 +43,7 @@ let draggedPreviewElement: HTMLElement | null = null;
 let dropIndicatorElement: HTMLElement | null = null;
 let isInteractingWithInput = false;
 const maxAbsoluteInputValue = 100;
-const maxNumericInputLength = 16;
+const maxNumericInputLength = 64;
 const vectorColors = [
 	"#f4b740",
 	"#5bd8a6",
@@ -126,6 +129,7 @@ root.innerHTML = `
           </span>
           <span role="cell" data-i18n="addDescription">${t("addDescription")}</span>
         </div>
+        <div role="row"><span role="cell"><kbd data-i18n="expressions">${t("expressions")}</kbd></span><span role="cell" data-i18n="expressionsDescription">${t("expressionsDescription")}</span></div>
       </div>
       <section class="interaction-guide" aria-labelledby="interaction-guide-title">
         <h2 id="interaction-guide-title" data-i18n="gestures">${t("gestures")}</h2>
@@ -183,6 +187,10 @@ root.addEventListener("click", (event) => {
 	const action = actionButton.dataset.action;
 	if (action === "add-matrix") addMatrix();
 	if (action === "add-vector") addVector();
+	if (action === "add-matrix-preset" && actionButton.dataset.presetId)
+		addMatrixPreset(actionButton.dataset.presetId);
+	if (action === "add-eigenbasis") addEigenbasis();
+	if (action === "add-eigenvector") addRepresentativeEigenvector();
 	if (action === "play") togglePlayback();
 	if (action === "reset") resetTransform();
 	if (action === "reset-view") resetView();
@@ -193,6 +201,71 @@ root.addEventListener("click", (event) => {
 	if (action === "delete-vector" && actionButton.dataset.id)
 		deleteVector(actionButton.dataset.id);
 });
+
+document.addEventListener("click", (event) => {
+	if ((event.target as HTMLElement).closest(".preset-split")) return;
+	closePresetMenus();
+});
+
+document.addEventListener("keydown", (event) => {
+	const menuPanel = (event.target as HTMLElement).closest<HTMLElement>(
+		".preset-menu-panel",
+	);
+	if (
+		menuPanel &&
+		["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)
+	) {
+		const items = [
+			...menuPanel.querySelectorAll<HTMLButtonElement>(
+				"button:not(:disabled)",
+			),
+		];
+		if (items.length === 0) return;
+		const current = items.indexOf(
+			document.activeElement as HTMLButtonElement,
+		);
+		const index =
+			event.key === "Home"
+				? 0
+				: event.key === "End"
+					? items.length - 1
+					: event.key === "ArrowDown"
+						? (current + 1) % items.length
+						: (current - 1 + items.length) % items.length;
+		event.preventDefault();
+		items[index].focus();
+		return;
+	}
+	if (event.key !== "Escape") return;
+	const openMenu =
+		root.querySelector<HTMLDetailsElement>(".preset-menu[open]");
+	if (!openMenu) return;
+	openMenu.open = false;
+	openMenu.querySelector<HTMLElement>("summary")?.focus();
+});
+
+root.addEventListener(
+	"toggle",
+	(event) => {
+		const menu = event.target;
+		if (
+			!(menu instanceof HTMLDetailsElement) ||
+			!menu.matches(".preset-menu")
+		)
+			return;
+		menu.querySelector("summary")?.setAttribute(
+			"aria-expanded",
+			String(menu.open),
+		);
+		if (!menu.open) return;
+		root.querySelectorAll<HTMLDetailsElement>(".preset-menu[open]").forEach(
+			(other) => {
+				if (other !== menu) other.open = false;
+			},
+		);
+	},
+	true,
+);
 
 root.addEventListener("input", (event) => {
 	if (event.target instanceof HTMLInputElement) handleInput(event.target);
@@ -312,6 +385,76 @@ function addVector(): void {
 	resetAnimation();
 }
 
+function addMatrixPreset(presetId: string): void {
+	const workspace = getWorkspace(state);
+	const preset = getMatrixPresets(workspace.dimension).find(
+		(item) => item.id === presetId,
+	);
+	if (!preset) return;
+	workspace.matrices.unshift(
+		createMatrixNode(
+			workspace.dimension,
+			nextMatrixLabel(workspace.matrices.map((matrix) => matrix.label)),
+			preset.values,
+			preset.draftValues,
+		),
+	);
+	resetAnimation();
+}
+
+function addEigenbasis(): void {
+	const workspace = getWorkspace(state);
+	const basis = getRealEigenbasis(
+		workspace.dimension,
+		getTotalTransform(workspace),
+	);
+	if (!basis) return;
+	for (const components of basis) {
+		const color =
+			vectorColors[workspace.vectors.length % vectorColors.length];
+		workspace.vectors.push(
+			createVectorNode(
+				workspace.dimension,
+				nextVectorLabel(
+					workspace.vectors.map((vector) => vector.label),
+				),
+				color,
+				components,
+				components.map(formatInputNumber),
+			),
+		);
+	}
+	resetAnimation();
+}
+
+function addRepresentativeEigenvector(): void {
+	const workspace = getWorkspace(state);
+	const vector = getRepresentativeRealEigenvector(
+		workspace.dimension,
+		getTotalTransform(workspace),
+	);
+	if (!vector) return;
+	const color = vectorColors[workspace.vectors.length % vectorColors.length];
+	workspace.vectors.push(
+		createVectorNode(
+			workspace.dimension,
+			nextVectorLabel(workspace.vectors.map((item) => item.label)),
+			color,
+			vector,
+			vector.map(formatInputNumber),
+		),
+	);
+	resetAnimation();
+}
+
+function closePresetMenus(): void {
+	root.querySelectorAll<HTMLDetailsElement>(".preset-menu[open]").forEach(
+		(menu) => {
+			menu.open = false;
+		},
+	);
+}
+
 function deleteMatrix(id: string): void {
 	const workspace = getWorkspace(state);
 	workspace.matrices = workspace.matrices.filter(
@@ -368,6 +511,7 @@ function handleInput(input: HTMLInputElement): void {
 		return;
 	}
 	if (input.dataset.matrixId && input.dataset.entryIndex !== undefined) {
+		updateMatrixGridWidth(input);
 		updateMatrixEntry(
 			input.dataset.matrixId,
 			Number(input.dataset.entryIndex),
@@ -376,6 +520,7 @@ function handleInput(input: HTMLInputElement): void {
 		return;
 	}
 	if (input.dataset.vectorId && input.dataset.componentIndex !== undefined) {
+		updateVectorColumnWidths(input);
 		updateVectorComponent(
 			input.dataset.vectorId,
 			Number(input.dataset.componentIndex),
@@ -453,7 +598,9 @@ function updateNumericDraft({
 	draft[index] = value;
 	const parsed = draft
 		.slice(0, count)
-		.map((entry) => parseBoundedNumber(entry, maxAbsoluteInputValue));
+		.map((entry) =>
+			evaluateBoundedExpression(entry, maxAbsoluteInputValue),
+		);
 	const inputs =
 		stackElement.querySelectorAll<HTMLInputElement>(inputSelector);
 	inputs.forEach((input, inputIndex) =>
@@ -537,6 +684,7 @@ function renderUi(renderStack = true): void {
 	animationModeElement.value = state.animation.mode;
 
 	if (renderStack) stackElement.innerHTML = renderEquation();
+	else updateVectorPresetAvailability();
 	updateAnimationHighlight(performance.now());
 }
 
@@ -592,9 +740,7 @@ function renderAddMatrixOperand(): string {
 	const dimension = getWorkspace(state).dimension;
 	return `
     <li class="matrix-add-item">
-      <button class="equation-add-button matrix-add-button matrix-add-button-${dimension}" type="button" data-action="add-matrix" aria-label="${t("addMatrix")}" title="${t("addMatrix")}">
-        <math aria-hidden="true"><mo>+</mo><mi>M</mi></math>
-      </button>
+      ${renderMatrixAddControl(`matrix-add-button-${dimension}`)}
     </li>
   `;
 }
@@ -602,15 +748,112 @@ function renderAddMatrixOperand(): string {
 function renderAddVectorOperand(): string {
 	const dimension = getWorkspace(state).dimension;
 	return `
-    <button class="equation-add-button vector-add-button vector-add-button-${dimension}" type="button" data-action="add-vector" aria-label="${t("addVector")}" title="${t("addVector")}">
-      <math aria-hidden="true"><mo>+</mo><mi>v</mi></math>
-    </button>
+    ${renderVectorAddControl(`vector-add-button-${dimension}`)}
   `;
+}
+
+function renderMatrixAddControl(positionClass: string): string {
+	return `
+    <div class="preset-split matrix-add-button ${positionClass}">
+      <button class="equation-add-button preset-main" type="button" data-action="add-matrix" aria-label="${t("addMatrix")}" title="${t("addMatrix")}">
+        <math aria-hidden="true"><mo>+</mo><mi>M</mi></math>
+      </button>
+      <details class="preset-menu">
+        <summary aria-label="${t("matrixPresets")}" title="${t("matrixPresets")}" aria-haspopup="menu" aria-expanded="false"></summary>
+        <div class="preset-menu-panel" role="menu" aria-label="${t("matrixPresets")}">
+          ${getMatrixPresets(getWorkspace(state).dimension)
+				.map(
+					(preset) => `
+            <button type="button" role="menuitem" data-action="add-matrix-preset" data-preset-id="${preset.id}">
+              ${escapeHtml(matrixPresetName(preset))}
+            </button>`,
+				)
+				.join("")}
+        </div>
+      </details>
+    </div>
+  `;
+}
+
+function renderVectorAddControl(positionClass: string): string {
+	const workspace = getWorkspace(state);
+	const transform = getTotalTransform(workspace);
+	const basisAvailable = Boolean(
+		getRealEigenbasis(workspace.dimension, transform),
+	);
+	const vectorAvailable = Boolean(
+		getRepresentativeRealEigenvector(workspace.dimension, transform),
+	);
+	return `
+    <div class="preset-split vector-add-button ${positionClass}">
+      <button class="equation-add-button preset-main" type="button" data-action="add-vector" aria-label="${t("addVector")}" title="${t("addVector")}">
+        <math aria-hidden="true"><mo>+</mo><mi>v</mi></math>
+      </button>
+      <details class="preset-menu">
+        <summary aria-label="${t("vectorPresets")}" title="${t("vectorPresets")}" aria-haspopup="menu" aria-expanded="false"></summary>
+        <div class="preset-menu-panel" role="menu" aria-label="${t("vectorPresets")}">
+          <button type="button" role="menuitem" data-action="add-eigenvector" ${vectorAvailable ? "" : "disabled"}>${t("oneEigenvector")}</button>
+          <span class="preset-unavailable" data-eigenvector-unavailable ${vectorAvailable ? "hidden" : ""}>${t("eigenvectorUnavailable")}</span>
+          <button type="button" role="menuitem" data-action="add-eigenbasis" ${basisAvailable ? "" : "disabled"}>${t("allEigenbasis")}</button>
+          <span class="preset-unavailable" data-eigenbasis-unavailable ${basisAvailable ? "hidden" : ""}>${t("eigenbasisUnavailable")}</span>
+        </div>
+      </details>
+    </div>
+  `;
+}
+
+function updateVectorPresetAvailability(): void {
+	const workspace = getWorkspace(state);
+	const transform = getTotalTransform(workspace);
+	const basisAvailable = Boolean(
+		getRealEigenbasis(workspace.dimension, transform),
+	);
+	const vectorAvailable = Boolean(
+		getRepresentativeRealEigenvector(workspace.dimension, transform),
+	);
+	root.querySelectorAll<HTMLButtonElement>(
+		"[data-action='add-eigenbasis']",
+	).forEach((button) => {
+		button.disabled = !basisAvailable;
+	});
+	root.querySelectorAll<HTMLElement>("[data-eigenbasis-unavailable]").forEach(
+		(message) => {
+			message.toggleAttribute("hidden", basisAvailable);
+		},
+	);
+	root.querySelectorAll<HTMLButtonElement>(
+		"[data-action='add-eigenvector']",
+	).forEach((button) => {
+		button.disabled = !vectorAvailable;
+	});
+	root.querySelectorAll<HTMLElement>(
+		"[data-eigenvector-unavailable]",
+	).forEach((message) => {
+		message.toggleAttribute("hidden", vectorAvailable);
+	});
+}
+
+function matrixPresetName(preset: MatrixPreset): string {
+	if (preset.kind === "identity") return t("identityPreset");
+	if (preset.kind === "reflection")
+		return t(
+			getWorkspace(state).dimension === 2
+				? "reflectionAxisPreset"
+				: "reflectionPlanePreset",
+			{ axis: preset.axis },
+		);
+	return t("rotationPreset", {
+		angle: preset.angle ?? 0,
+		axis: preset.axis ? ` ${t("aroundAxis", { axis: preset.axis })}` : "",
+	});
 }
 
 function renderMatrixCard(matrix: MatrixNode): string {
 	const dimension = getWorkspace(state).dimension;
 	const columns = dimension;
+	const columnTemplate = renderEntryColumnTemplate(
+		groupEntriesByColumn(matrix.draftValues, columns),
+	);
 	const entries = matrix.draftValues
 		.map((value, entryIndex) => {
 			const inputName = `matrix-${matrix.id}-entry-${entryIndex}`;
@@ -618,7 +861,7 @@ function renderMatrixCard(matrix: MatrixNode): string {
         <input
           name="${inputName}"
           type="text"
-          inputmode="decimal"
+          inputmode="text"
           maxlength="${maxNumericInputLength}"
           autocomplete="off"
           value="${escapeHtml(value)}"
@@ -644,7 +887,7 @@ function renderMatrixCard(matrix: MatrixNode): string {
         </header>
         <div class="matrix-expression" role="group" aria-label="${t("matrixValues", { label: matrix.label })}">
           <div class="matrix-bracket">
-            <div class="matrix-grid matrix-grid-${dimension}" role="group" aria-label="${t("matrixEntries", { label: matrix.label })}">
+            <div class="matrix-grid matrix-grid-${dimension}" style="grid-template-columns:${columnTemplate}" role="group" aria-label="${t("matrixEntries", { label: matrix.label })}">
               ${entries}
             </div>
           </div>
@@ -658,9 +901,22 @@ function renderMatrixCard(matrix: MatrixNode): string {
   `;
 }
 
+function updateMatrixGridWidth(input: HTMLInputElement): void {
+	const grid = input.closest<HTMLElement>(".matrix-grid");
+	if (!grid) return;
+	const values = [...grid.querySelectorAll<HTMLInputElement>("input")].map(
+		(entry) => entry.value,
+	);
+	const columns = grid.classList.contains("matrix-grid-3") ? 3 : 2;
+	applyEntryColumnTemplate([grid], groupEntriesByColumn(values, columns));
+}
+
 function renderVectorMatrix(): string {
 	const workspace = getWorkspace(state);
-	const columnTemplate = `repeat(${workspace.vectors.length}, var(--matrix-column-width)) 44px`;
+	const columnTemplate = renderEntryColumnTemplate(
+		workspace.vectors.map((vector) => vector.draftComponents),
+		["60px"],
+	);
 	const labels = workspace.vectors
 		.map(
 			(vector) => `
@@ -685,7 +941,7 @@ function renderVectorMatrix(): string {
         <input
           name="${inputName}"
           type="text"
-          inputmode="decimal"
+          inputmode="text"
           maxlength="${maxNumericInputLength}"
           autocomplete="off"
           value="${escapeHtml(value)}"
@@ -705,9 +961,7 @@ function renderVectorMatrix(): string {
     <article class="vector-matrix-card vector-matrix-card-${workspace.dimension}" aria-label="${t("inputVectorMatrix")}">
       <div class="vector-column-labels" style="grid-template-columns:${columnTemplate}">
         ${labels}
-        <button class="equation-add-button vector-add-button vector-add-button-inline" type="button" data-action="add-vector" aria-label="${t("addVector")}" title="${t("addVector")}">
-          <math aria-hidden="true"><mo>+</mo><mi>v</mi></math>
-        </button>
+        ${renderVectorAddControl("vector-add-button-inline")}
       </div>
       <div class="vector-expression vector-expression-${workspace.dimension}" style="grid-template-columns:${columnTemplate}" role="group" aria-label="${t("inputVectorColumns")}">
           ${entries}
@@ -717,9 +971,71 @@ function renderVectorMatrix(): string {
   `;
 }
 
+function updateVectorColumnWidths(input: HTMLInputElement): void {
+	const card = input.closest<HTMLElement>(".vector-matrix-card");
+	if (!card) return;
+	const columns = [
+		...card.querySelectorAll<HTMLElement>(".vector-column-label"),
+	].map((label) => {
+		const vectorId = label.dataset.vectorColumnId;
+		if (!vectorId) return [];
+		return [
+			...card.querySelectorAll<HTMLInputElement>(
+				`input[data-vector-id="${CSS.escape(vectorId)}"]`,
+			),
+		].map((entry) => entry.value);
+	});
+	applyEntryColumnTemplate(
+		[
+			...card.querySelectorAll<HTMLElement>(
+				".vector-column-labels, .vector-expression",
+			),
+		],
+		columns,
+		["60px"],
+	);
+}
+
+function groupEntriesByColumn(
+	values: string[],
+	columnCount: number,
+): string[][] {
+	return Array.from({ length: columnCount }, (_, column) =>
+		values.filter((_, index) => index % columnCount === column),
+	);
+}
+
+function renderEntryColumnTemplate(
+	columns: string[][],
+	trailingTracks: string[] = [],
+): string {
+	const tracks = columns.map((values) => {
+		const width = Math.min(
+			36,
+			Math.max(4, ...values.map((value) => Array.from(value).length)),
+		);
+		return `max(var(--matrix-column-width), calc(${width} * 1ch + 10px))`;
+	});
+	return [...tracks, ...trailingTracks].join(" ");
+}
+
+function applyEntryColumnTemplate(
+	elements: HTMLElement[],
+	columns: string[][],
+	trailingTracks: string[] = [],
+): void {
+	const template = renderEntryColumnTemplate(columns, trailingTracks);
+	elements.forEach((element) => {
+		element.style.gridTemplateColumns = template;
+	});
+}
+
 function renderResultMatrix(): string {
 	const workspace = getWorkspace(state);
-	const columnTemplate = `repeat(${workspace.vectors.length}, var(--matrix-column-width))`;
+	const formattedVectors = getTransformedVectors(workspace).map(
+		(components) => components.map(formatNumber),
+	);
+	const columnTemplate = renderEntryColumnTemplate(formattedVectors);
 	const labels = workspace.vectors
 		.map(
 			(vector) => `
@@ -732,14 +1048,13 @@ function renderResultMatrix(): string {
       `,
 		)
 		.join("");
-	const transformedVectors = getTransformedVectors(workspace);
 	const entries = Array.from(
 		{ length: workspace.dimension },
 		(_, componentIndex) =>
-			transformedVectors
+			formattedVectors
 				.map(
 					(components, vectorIndex) =>
-						`<output data-result-vector-index="${vectorIndex}" data-result-component-index="${componentIndex}">${formatNumber(components[componentIndex] ?? 0)}</output>`,
+						`<output data-result-vector-index="${vectorIndex}" data-result-component-index="${componentIndex}">${components[componentIndex] ?? "0"}</output>`,
 				)
 				.join(""),
 	).join("");
@@ -1035,6 +1350,13 @@ function formatNumber(value: number): string {
 		: rounded.toFixed(3).replace(/\.?0+$/, "");
 }
 
+function formatInputNumber(value: number): string {
+	const rounded = Math.abs(value) < 0.0000000001 ? 0 : value;
+	return Number.isInteger(rounded)
+		? String(rounded)
+		: Number(rounded.toPrecision(8)).toString();
+}
+
 function updateAnimationHighlight(now: number): void {
 	const workspace = getWorkspace(state);
 	const progress = getAnimationProgress(workspace, state.animation, now);
@@ -1076,7 +1398,10 @@ function setAnimationHighlight(
 
 function updateResultOutputs(): void {
 	const workspace = getWorkspace(state);
-	getTransformedVectors(workspace).forEach((transformed, vectorIndex) => {
+	const formattedVectors = getTransformedVectors(workspace).map(
+		(components) => components.map(formatNumber),
+	);
+	formattedVectors.forEach((transformed, vectorIndex) => {
 		for (
 			let componentIndex = 0;
 			componentIndex < workspace.dimension;
@@ -1086,14 +1411,22 @@ function updateResultOutputs(): void {
 				`output[data-result-vector-index="${vectorIndex}"][data-result-component-index="${componentIndex}"]`,
 			);
 			if (output) {
-				const formattedValue = formatNumber(
-					transformed[componentIndex] ?? 0,
-				);
+				const formattedValue = transformed[componentIndex] ?? "0";
 				output.value = formattedValue;
 				output.textContent = formattedValue;
 			}
 		}
 	});
+	const card = stackElement.querySelector<HTMLElement>(".result-matrix-card");
+	if (!card) return;
+	applyEntryColumnTemplate(
+		[
+			...card.querySelectorAll<HTMLElement>(
+				".result-column-labels, .result-expression",
+			),
+		],
+		formattedVectors,
+	);
 }
 
 function tick(now: number): void {
