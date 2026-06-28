@@ -4,6 +4,8 @@ import {
 	Mat3,
 	applyMatrixToVector,
 	composeMathNotation,
+	getRealEigenbasis,
+	getRepresentativeRealEigenvector,
 	lerpMatrix,
 	multiply2,
 	multiply3,
@@ -54,5 +56,60 @@ describe("numeric input parsing", () => {
 		expect(parseBoundedNumber("100", 100)).toBe(100);
 		expect(parseBoundedNumber("-100", 100)).toBe(-100);
 		expect(parseBoundedNumber("100.01", 100)).toBeNull();
+	});
+});
+
+describe("real eigensystems", () => {
+	it("returns normalized eigenvectors for distinct and repeated eigenvalues", () => {
+		expect(getRealEigenbasis(2, [2, 0, 0, 3])).toEqual([
+			[1, 0],
+			[0, 1],
+		]);
+		expect(getRealEigenbasis(3, [1, 0, 0, 0, 2, 0, 0, 0, 3])).toEqual([
+			[1, 0, 0],
+			[0, 1, 0],
+			[0, 0, 1],
+		]);
+		expect(getRealEigenbasis(3, [2, 0, 0, 0, 2, 0, 0, 0, 2])).toEqual([
+			[1, 0, 0],
+			[0, 1, 0],
+			[0, 0, 1],
+		]);
+		expect(getRealEigenbasis(3, [2, 0, 0, 0, 2, 0, 0, 0, 3])).toEqual([
+			[1, 0, 0],
+			[0, 1, 0],
+			[0, 0, 1],
+		]);
+	});
+
+	it("rejects defective and complex-spectrum full eigenbases", () => {
+		expect(getRealEigenbasis(2, [2, 1, 0, 2])).toBeNull();
+		expect(getRealEigenbasis(2, [0, -1, 1, 0])).toBeNull();
+		expect(getRealEigenbasis(3, [0, -1, 0, 1, 0, 0, 0, 0, 2])).toBeNull();
+	});
+
+	it("finds one real eigenvector when a full eigenbasis is unavailable", () => {
+		expect(getRepresentativeRealEigenvector(2, [2, 1, 0, 2])).toEqual([
+			1, 0,
+		]);
+		expect(
+			getRepresentativeRealEigenvector(3, [0, -1, 0, 1, 0, 0, 0, 0, 2]),
+		).toEqual([0, 0, 1]);
+		expect(getRepresentativeRealEigenvector(2, [0, -1, 1, 0])).toBeNull();
+	});
+
+	it("does not invent an eigenbasis for near-degenerate rotations", () => {
+		const angle = 1e-8;
+		const cosine = Math.cos(angle);
+		const sine = Math.sin(angle);
+		const rotation2: Mat2 = [cosine, -sine, sine, cosine];
+		expect(getRealEigenbasis(2, rotation2)).toBeNull();
+		expect(getRepresentativeRealEigenvector(2, rotation2)).toBeNull();
+
+		const rotation3: Mat3 = [cosine, -sine, 0, sine, cosine, 0, 0, 0, 1];
+		expect(getRealEigenbasis(3, rotation3)).toBeNull();
+		expect(getRepresentativeRealEigenvector(3, rotation3)).toEqual([
+			0, 0, 1,
+		]);
 	});
 });
