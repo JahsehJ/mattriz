@@ -228,13 +228,11 @@ stackElement.addEventListener("pointerdown", (event) => {
 	}
 });
 
-window.addEventListener("pointerup", () => {
+const finishInputInteraction = (): void => {
 	isInteractingWithInput = false;
-});
-
-window.addEventListener("pointercancel", () => {
-	isInteractingWithInput = false;
-});
+};
+window.addEventListener("pointerup", finishInputInteraction);
+window.addEventListener("pointercancel", finishInputInteraction);
 
 stackElement.addEventListener("dragstart", (event) => {
 	if (isInteractingWithInput) {
@@ -279,16 +277,16 @@ stackElement.addEventListener("drop", (event) => {
 		if (matrixTarget)
 			moveMatrix(dragState.id, matrixTarget.id, matrixTarget.side);
 	}
-	clearDropIndicator();
-	clearDraggingElement();
-	dragState = null;
+	finishDragging();
 });
 
-stackElement.addEventListener("dragend", () => {
+stackElement.addEventListener("dragend", finishDragging);
+
+function finishDragging(): void {
 	clearDropIndicator();
 	clearDraggingElement();
 	dragState = null;
-});
+}
 
 function addMatrix(): void {
 	const workspace = getWorkspace(state);
@@ -399,7 +397,7 @@ function updateMatrixEntry(
 		index: entryIndex,
 		value,
 		count: getWorkspace(state).dimension ** 2,
-		inputSelector: `input[data-matrix-id="${cssEscape(id)}"]`,
+		inputSelector: `input[data-matrix-id="${CSS.escape(id)}"]`,
 		commit: (values) => {
 			matrix.values = values as MatrixNode["values"];
 		},
@@ -412,7 +410,7 @@ function updateDuration(id: string, value: number): void {
 	matrix.durationMs = Math.max(100, Math.min(3000, value));
 	resetAnimation(false);
 	const output = stackElement.querySelector<HTMLElement>(
-		`[data-duration-output="${cssEscape(id)}"]`,
+		`[data-duration-output="${CSS.escape(id)}"]`,
 	);
 	if (output) output.textContent = `${matrix.durationMs}ms`;
 }
@@ -430,7 +428,7 @@ function updateVectorComponent(
 		index: componentIndex,
 		value,
 		count: getWorkspace(state).dimension,
-		inputSelector: `input[data-vector-id="${cssEscape(id)}"]`,
+		inputSelector: `input[data-vector-id="${CSS.escape(id)}"]`,
 		commit: (values) => {
 			vector.components = values as VectorValues;
 		},
@@ -546,23 +544,22 @@ function updatePlaybackControl(): void {
 	const playButton = root.querySelector<HTMLButtonElement>(
 		"[data-action='play']",
 	);
-	if (playButton) {
-		const playbackTextKey: MessageKey =
-			state.animation.status === "playing"
-				? "pause"
-				: state.animation.status === "paused"
-					? "resume"
-					: "apply";
-		const playbackLabelKey: MessageKey =
-			state.animation.status === "playing"
-				? "pauseAnimation"
-				: state.animation.status === "paused"
-					? "resumeAnimation"
-					: "applyTransform";
-		playButton.textContent = t(playbackTextKey);
-		playButton.setAttribute("aria-label", t(playbackLabelKey));
-		playButton.dataset.playbackStatus = state.animation.status;
-	}
+	if (!playButton) return;
+	const playbackTextKey: MessageKey =
+		state.animation.status === "playing"
+			? "pause"
+			: state.animation.status === "paused"
+				? "resume"
+				: "apply";
+	const playbackLabelKey: MessageKey =
+		state.animation.status === "playing"
+			? "pauseAnimation"
+			: state.animation.status === "paused"
+				? "resumeAnimation"
+				: "applyTransform";
+	playButton.textContent = t(playbackTextKey);
+	playButton.setAttribute("aria-label", t(playbackLabelKey));
+	playButton.dataset.playbackStatus = state.animation.status;
 }
 
 function renderEquation(): string {
@@ -838,7 +835,7 @@ function getVectorSourceElement(target: HTMLElement): HTMLElement | null {
 		?.dataset.vectorColumnId;
 	if (!vectorId) return null;
 	return stackElement.querySelector<HTMLElement>(
-		`.vector-column-label[data-vector-column-id="${cssEscape(vectorId)}"]`,
+		`.vector-column-label[data-vector-column-id="${CSS.escape(vectorId)}"]`,
 	);
 }
 
@@ -864,7 +861,7 @@ function setDraggingElement(
 	if (element.dataset.vectorColumnId) {
 		stackElement
 			.querySelectorAll<HTMLElement>(
-				`.vector-expression [data-vector-column-id="${cssEscape(element.dataset.vectorColumnId)}"]`,
+				`.vector-expression [data-vector-column-id="${CSS.escape(element.dataset.vectorColumnId)}"]`,
 			)
 			.forEach((item) => {
 				item.dataset.dragging = "true";
@@ -1029,10 +1026,6 @@ function renderCloseIcon(): string {
       <path d="M3.5 3.5 12.5 12.5M12.5 3.5 3.5 12.5" />
     </svg>
   `;
-}
-
-function cssEscape(value: string): string {
-	return CSS.escape(value);
 }
 
 function formatNumber(value: number): string {

@@ -18,7 +18,6 @@ export interface MatrixNode {
 	values: MatrixValues;
 	draftValues: string[];
 	durationMs: number;
-	easing: "linear";
 }
 
 export interface VectorNode {
@@ -61,27 +60,21 @@ export type AnimationProgress =
 	| { mode: "steps"; matrixId: string; progress: number }
 	| { mode: "composed"; progress: number };
 
-export function createInitialState(): AppState {
-	const matrix2 = createMatrixNode(2, "A");
-	const matrix3 = createMatrixNode(3, "A");
-	const vector2 = createVectorNode(2, "v1", "#f4b740");
-	const vector3 = createVectorNode(3, "v1", "#f4b740");
+function createWorkspace(dimension: Dimension): Workspace {
+	return {
+		dimension,
+		matrices: [createMatrixNode(dimension, "A")],
+		vectors: [createVectorNode(dimension, "v1", "#f4b740")],
+		appliedTransform: identityMatrix(dimension),
+	};
+}
 
+export function createInitialState(): AppState {
 	return {
 		activeDimension: 3,
 		workspaces: {
-			2: {
-				dimension: 2,
-				matrices: [matrix2],
-				vectors: [vector2],
-				appliedTransform: identityMatrix(2),
-			},
-			3: {
-				dimension: 3,
-				matrices: [matrix3],
-				vectors: [vector3],
-				appliedTransform: identityMatrix(3),
-			},
+			2: createWorkspace(2),
+			3: createWorkspace(3),
 		},
 		animation: {
 			mode: "steps",
@@ -105,7 +98,6 @@ export function createMatrixNode(
 		values: nextValues,
 		draftValues: Array.from(nextValues, String),
 		durationMs: 900,
-		easing: "linear",
 	};
 }
 
@@ -200,9 +192,8 @@ export function getStepTransform(
 ): MatrixValues {
 	let remaining = elapsedMs;
 	let accumulated = identityMatrix(workspace.dimension);
-	const applicationOrder = [...workspace.matrices].reverse();
 
-	for (const matrix of applicationOrder) {
+	for (const matrix of [...workspace.matrices].reverse()) {
 		const duration = getMatrixDuration(matrix);
 		if (remaining <= duration) {
 			const partial = lerpMatrix(
@@ -244,9 +235,7 @@ export function getAnimationProgress(
 		};
 	}
 
-	const applicationOrder = [...workspace.matrices].reverse();
-
-	for (const matrix of applicationOrder) {
+	for (const matrix of [...workspace.matrices].reverse()) {
 		const duration = getMatrixDuration(matrix);
 		if (remaining <= duration) {
 			return {
