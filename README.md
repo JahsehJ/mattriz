@@ -8,12 +8,11 @@ transformations.
 - 2x2 and 3x3 matrix workspaces.
 - Ordered, editable, drag-reorderable matrix stacks.
 - Editable and reorderable custom vector columns.
-- Dimension-aware matrix presets and computed real eigenbasis vectors.
-- Exact-looking entry expressions with fractions, powers, radicals, and trigonometry.
+- Matrix presets and eigenvector computation.
+- Mathematical expressions with fractions, powers, radicals, and trigonometry.
 - Step and composed-transform animation with per-matrix durations.
 - MathML equation structure with HTML numeric inputs.
 - Orthographic 2D and perspective 3D cameras with independent session state.
-- Persistent grid geometry shared by the animation pipeline.
 - Installable progressive web app with offline app-shell support.
 
 ## Development
@@ -23,47 +22,38 @@ npm ci
 npm run dev
 ```
 
-```sh
-npm test
-npm run lint
-npm run format:check
-npm run build
-npm audit
-```
+Run the linter, formatting check, test suite, and production build:
 
-Run `npm run format` to apply Prettier formatting, or `npm run check` to run
-all lint, format, test, and build checks.
+```sh
+npm run check
+```
 
 ## Architecture
 
 ```text
 src/
-	main.ts       DOM structure, controls, events, and application loop
-	scene.ts      Three.js scene, cameras, grids, axes, and arrows
-	state.ts      workspace state, animation state, and render-state derivation
-	math.ts       typed matrix/vector operations and input parsing
-	math.test.ts  matrix, composition, validation, and animation tests
-	i18n.ts       English and Traditional Chinese interface messages
-	i18n.test.ts  translation and interpolation tests
-	styles.css    layout and visual styling
-vite.config.ts    build configuration and Three.js vendor chunking
+├── main.ts         UI, events, and application loop
+├── scene.ts        Three.js scene and rendering
+├── state.ts        Workspace and animation state
+├── math.ts         Matrix and vector operations
+├── expression.ts   Expression parsing and validation
+├── presets.ts      Matrix and vector presets
+├── share.ts        URL-fragment session serialization
+├── i18n.ts         Interface translations
+└── styles.css      Layout and visual styling
 ```
 
-The UI uses direct DOM rendering without a frontend framework. Numerical
-operations stay in `math.ts`, animation and workspace derivation in `state.ts`,
-and Three.js concerns in `scene.ts`.
+The interface uses direct DOM rendering without a frontend framework.
+`main.ts` coordinates state and rendering while numerical and Three.js concerns
+remain isolated in `math.ts` and `scene.ts`.
 
-Matrix and vector entries accept ASCII expressions such as `1/2`,
-`sqrt(2)/2`, `2^(-3)`, and `cos(pi/4)`. Trigonometric arguments use radians;
-implicit multiplication is not supported.
-
-Scene geometry uses mathematical coordinates directly. The 3D camera is Z-up;
-the 2D camera views the XY plane with Y-up.
+Scene geometry uses mathematical coordinates directly. The three-dimensional
+camera is Z-up; the two-dimensional camera views the XY plane with Y-up.
 
 Rendering resource ownership and performance guardrails are documented in
 [`docs/rendering-performance.md`](docs/rendering-performance.md).
 
-## LLM disclosure
+## LLM Disclosure
 
 Mattriz uses LLMs to assist with implementation, analysis, and documentation.
 Human developers review the work and retain responsibility for project
