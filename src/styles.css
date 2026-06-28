@@ -627,7 +627,6 @@ kbd {
 	background:
 		linear-gradient(90deg, rgb(244 183 64 / 24%), rgb(244 183 64 / 10%)),
 		#172124;
-	transition: width 120ms linear;
 }
 
 .matrix-card > * {
