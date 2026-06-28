@@ -2,6 +2,7 @@ import {
 	Dimension,
 	MatrixValues,
 	VectorValues,
+	applyMatrixToVector,
 	composeMathNotation,
 	identityMatrix,
 	lerpMatrix,
@@ -52,15 +53,13 @@ export interface AppState {
 export interface RenderState {
 	dimension: Dimension;
 	transform: MatrixValues;
-	totalTransform: MatrixValues;
 	vectors: VectorNode[];
 	showBasis: boolean;
 }
 
-export interface ActiveStepProgress {
-	matrixId: string;
-	progress: number;
-}
+export type AnimationProgress =
+	| { mode: "steps"; matrixId: string; progress: number }
+	| { mode: "composed"; progress: number };
 
 export function createInitialState(): AppState {
 	const matrix2 = createMatrixNode(2, "A");
@@ -136,6 +135,18 @@ export function getTotalTransform(workspace: Workspace): MatrixValues {
 	);
 }
 
+export function getTransformedVectors(workspace: Workspace): VectorValues[] {
+	const transform = getTotalTransform(workspace);
+	return workspace.vectors.map(
+		(vector) =>
+			applyMatrixToVector(
+				workspace.dimension,
+				transform,
+				vector.components,
+			).slice(0, workspace.dimension) as VectorValues,
+	);
+}
+
 export function getRenderState(state: AppState, now: number): RenderState {
 	const workspace = getWorkspace(state);
 	const totalTransform = getTotalTransform(workspace);
@@ -148,7 +159,6 @@ export function getRenderState(state: AppState, now: number): RenderState {
 			now,
 			totalTransform,
 		),
-		totalTransform,
 		vectors: workspace.vectors,
 		showBasis: state.showBasis,
 	};
@@ -164,24 +174,20 @@ export function getAnimatedTransform(
 		return workspace.appliedTransform;
 	}
 
-	const elapsed = Math.max(
-		0,
-		(animation.status === "paused" ? animation.pausedAt : now) -
-			animation.startedAt,
-	);
+	const elapsed = getAnimationElapsed(animation, now);
 	if (animation.mode === "composed") {
-		const duration = Math.max(
-			1,
-			workspace.matrices.reduce(
-				(sum, matrix) => sum + matrix.durationMs,
-				0,
-			),
+		const animationProgress = getAnimationProgress(
+			workspace,
+			animation,
+			now,
 		);
+		if (animationProgress?.mode !== "composed")
+			return workspace.appliedTransform;
 		return lerpMatrix(
 			workspace.dimension,
 			identityMatrix(workspace.dimension),
 			totalTransform,
-			elapsed / duration,
+			animationProgress.progress,
 		);
 	}
 
@@ -197,7 +203,7 @@ export function getStepTransform(
 	const applicationOrder = [...workspace.matrices].reverse();
 
 	for (const matrix of applicationOrder) {
-		const duration = Math.max(1, matrix.durationMs);
+		const duration = getMatrixDuration(matrix);
 		if (remaining <= duration) {
 			const partial = lerpMatrix(
 				workspace.dimension,
@@ -219,32 +225,32 @@ export function getStepTransform(
 	return accumulated;
 }
 
-export function getActiveStepMatrixId(
+export function getAnimationProgress(
 	workspace: Workspace,
 	animation: AnimationState,
 	now: number,
-): string | null {
-	return getActiveStepProgress(workspace, animation, now)?.matrixId ?? null;
-}
+): AnimationProgress | null {
+	if (animation.status === "idle") return null;
 
-export function getActiveStepProgress(
-	workspace: Workspace,
-	animation: AnimationState,
-	now: number,
-): ActiveStepProgress | null {
-	if (animation.status === "idle" || animation.mode !== "steps") return null;
+	let remaining = getAnimationElapsed(animation, now);
+	if (animation.mode === "composed") {
+		return {
+			mode: "composed",
+			progress: Math.min(
+				1,
+				remaining /
+					Math.max(1, getAnimationDuration(workspace, "composed")),
+			),
+		};
+	}
 
-	let remaining = Math.max(
-		0,
-		(animation.status === "paused" ? animation.pausedAt : now) -
-			animation.startedAt,
-	);
 	const applicationOrder = [...workspace.matrices].reverse();
 
 	for (const matrix of applicationOrder) {
-		const duration = Math.max(1, matrix.durationMs);
+		const duration = getMatrixDuration(matrix);
 		if (remaining <= duration) {
 			return {
+				mode: "steps",
 				matrixId: matrix.id,
 				progress: remaining / duration,
 			};
@@ -255,9 +261,29 @@ export function getActiveStepProgress(
 	return null;
 }
 
-export function getAnimationDuration(workspace: Workspace): number {
-	return workspace.matrices.reduce(
-		(sum, matrix) => sum + Math.max(1, matrix.durationMs),
-		0,
-	);
+export function getAnimationDuration(
+	workspace: Workspace,
+	mode: AnimationMode,
+): number {
+	const durations = workspace.matrices.map(getMatrixDuration);
+	return mode === "composed"
+		? Math.max(0, ...durations)
+		: durations.reduce((sum, duration) => sum + duration, 0);
+}
+
+export function getMatrixDuration(matrix: MatrixNode): number {
+	return Number.isFinite(matrix.durationMs)
+		? Math.max(1, matrix.durationMs)
+		: 1;
+}
+
+export function getAnimationElapsed(
+	animation: AnimationState,
+	now: number,
+): number {
+	if (animation.status === "idle") return 0;
+	const currentTime =
+		animation.status === "paused" ? animation.pausedAt : now;
+	const elapsed = currentTime - animation.startedAt;
+	return Number.isFinite(elapsed) ? Math.max(0, elapsed) : 0;
 }

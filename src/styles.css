@@ -1,4 +1,6 @@
 :root {
+	--matrix-cell-height: 34px;
+	--matrix-column-width: 54px;
 	color-scheme: dark;
 	font-family:
 		Inter,
@@ -714,68 +716,89 @@ kbd {
 	margin: 12px 0;
 }
 
-.matrix-bracket {
+.matrix-bracket,
+.vector-expression,
+.result-expression {
 	position: relative;
 	width: max-content;
 	padding: 0 13px;
 }
 
 .matrix-bracket::before,
-.matrix-bracket::after {
+.matrix-bracket::after,
+.vector-expression::before,
+.vector-expression::after,
+.result-expression::before,
+.result-expression::after {
 	position: absolute;
 	top: 1px;
 	bottom: 1px;
 	width: 9px;
 	content: "";
-	border-color: #b9cfce;
+	border-color: var(--matrix-bracket-color, #b9cfce);
 }
 
-.matrix-bracket::before {
+.matrix-bracket::before,
+.vector-expression::before,
+.result-expression::before {
 	left: 0;
 	border-top: 2px solid;
 	border-bottom: 2px solid;
 	border-left: 2px solid;
 }
 
-.matrix-bracket::after {
+.matrix-bracket::after,
+.vector-expression::after,
+.result-expression::after {
 	right: 0;
 	border-top: 2px solid;
 	border-right: 2px solid;
 	border-bottom: 2px solid;
 }
 
-.matrix-grid {
+.matrix-grid,
+.vector-expression,
+.result-expression {
 	display: grid;
 	gap: 6px;
-	grid-auto-rows: 34px;
+	grid-auto-rows: var(--matrix-cell-height);
 }
 
 .matrix-grid-2 {
-	grid-template-columns: repeat(2, 54px);
+	grid-template-columns: repeat(2, var(--matrix-column-width));
 }
 
 .matrix-grid-3 {
-	grid-template-columns: repeat(3, 54px);
+	grid-template-columns: repeat(3, var(--matrix-column-width));
 }
 
-.matrix-grid input {
-	width: 100%;
+.matrix-grid input,
+.vector-expression input,
+.result-expression output,
+.vector-drag-preview-cell {
 	min-width: 0;
-	height: 34px;
-	border: 1px solid transparent;
+	height: var(--matrix-cell-height);
 	border-radius: 4px;
-	background: #10191b;
 	color: #edf5f2;
 	font-family: Georgia, "Times New Roman", serif;
 	font-size: 1rem;
+}
+
+.matrix-grid input,
+.vector-expression input {
+	width: 100%;
+	border: 1px solid transparent;
+	background: #10191b;
 	text-align: center;
 }
 
-.matrix-grid input:hover {
+.matrix-grid input:hover,
+.vector-expression input:hover {
 	border-color: #344d54;
 }
 
-.matrix-grid input[aria-invalid] {
+.matrix-grid input[aria-invalid],
+.vector-expression input[aria-invalid] {
 	border-color: #ef6f6c;
 	background: #251718;
 }
@@ -834,7 +857,7 @@ kbd {
 	align-items: center;
 	justify-content: center;
 	min-width: 0;
-	min-height: 34px;
+	min-height: var(--matrix-cell-height);
 	gap: 3px;
 }
 
@@ -885,95 +908,30 @@ kbd {
 }
 
 .vector-expression {
-	display: grid;
-	gap: 6px;
-	position: relative;
-	width: max-content;
-	padding: 0 13px;
-	grid-auto-rows: 34px;
-}
-
-.vector-expression::before,
-.vector-expression::after,
-.result-expression::before,
-.result-expression::after {
-	position: absolute;
-	top: 1px;
-	bottom: 1px;
-	width: 9px;
-	content: "";
-	border-color: color-mix(in srgb, var(--vector), #edf5f2 42%);
-}
-
-.vector-expression::before,
-.result-expression::before {
-	left: 0;
-	border-top: 2px solid;
-	border-bottom: 2px solid;
-	border-left: 2px solid;
-}
-
-.vector-expression::after,
-.result-expression::after {
-	right: 0;
-	border-top: 2px solid;
-	border-right: 2px solid;
-	border-bottom: 2px solid;
-}
-
-.vector-expression input {
-	width: 100%;
-	min-width: 0;
-	height: 34px;
-	border: 1px solid transparent;
-	border-radius: 4px;
-	background: #10191b;
-	color: #edf5f2;
-	font-family: Georgia, "Times New Roman", serif;
-	font-size: 1rem;
-	text-align: center;
+	--matrix-bracket-color: color-mix(in srgb, var(--vector), #edf5f2 42%);
 }
 
 .vector-add-cell {
 	display: block;
 	width: 44px;
-	height: 34px;
-}
-
-.vector-expression input:hover {
-	border-color: #344d54;
-}
-
-.vector-expression input[aria-invalid] {
-	border-color: #ef6f6c;
-	background: #251718;
+	height: var(--matrix-cell-height);
 }
 
 .result-expression {
-	display: grid;
-	gap: 6px;
-	position: relative;
-	width: max-content;
-	padding: 0 13px;
-	grid-auto-rows: 34px;
+	--matrix-bracket-color: color-mix(in srgb, var(--vector), #edf5f2 42%);
 }
 
 .card-balance-row {
 	width: 100%;
-	height: 34px;
+	height: var(--matrix-cell-height);
 	visibility: hidden;
 }
 
 .result-expression output {
 	display: grid;
-	min-width: 0;
-	height: 34px;
 	place-items: center;
 	border: 1px solid color-mix(in srgb, var(--vector), #edf5f2 24%);
-	border-radius: 4px;
 	background: rgb(16 25 27 / 70%);
-	color: #edf5f2;
-	font-family: Georgia, "Times New Roman", serif;
 	font-variant-numeric: tabular-nums;
 }
 
@@ -993,19 +951,14 @@ kbd {
 	display: grid;
 	gap: 6px;
 	width: max-content;
+	grid-template-columns: var(--matrix-column-width);
 }
 
 .vector-drag-preview-cell {
 	display: grid;
-	min-width: 0;
-	height: 34px;
 	place-items: center;
 	border: 1px solid #344d54;
-	border-radius: 4px;
 	background: #10191b;
-	color: #edf5f2;
-	font-family: Georgia, "Times New Roman", serif;
-	font-size: 1rem;
 }
 
 @media (max-width: 820px) {

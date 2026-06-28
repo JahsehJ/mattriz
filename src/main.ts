@@ -7,16 +7,17 @@ import {
 	createInitialState,
 	createMatrixNode,
 	createVectorNode,
-	getActiveStepProgress,
+	getAnimationElapsed,
 	getAnimationDuration,
+	getAnimationProgress,
 	getRenderState,
 	getTotalTransform,
+	getTransformedVectors,
 	getWorkspace,
 } from "./state";
 import {
 	Dimension,
 	VectorValues,
-	applyMatrixToVector,
 	identityMatrix,
 	parseBoundedNumber,
 } from "./math";
@@ -163,6 +164,10 @@ const scene = new MatrixScene(canvas);
 
 root.addEventListener("click", (event) => {
 	const target = event.target as HTMLElement;
+	if (target === aboutDialog) {
+		aboutDialog.close();
+		return;
+	}
 	const dimensionButton =
 		target.closest<HTMLButtonElement>("[data-dimension]");
 	const actionButton = target.closest<HTMLButtonElement>("[data-action]");
@@ -183,27 +188,24 @@ root.addEventListener("click", (event) => {
 	if (action === "reset-view") resetView();
 	if (action === "open-about") aboutDialog.showModal();
 	if (action === "close-about") aboutDialog.close();
-	if (action === "delete-matrix") deleteMatrix(actionButton.dataset.id ?? "");
-	if (action === "delete-vector") deleteVector(actionButton.dataset.id ?? "");
-});
-
-aboutDialog.addEventListener("click", (event) => {
-	if (event.target === aboutDialog) aboutDialog.close();
+	if (action === "delete-matrix" && actionButton.dataset.id)
+		deleteMatrix(actionButton.dataset.id);
+	if (action === "delete-vector" && actionButton.dataset.id)
+		deleteVector(actionButton.dataset.id);
 });
 
 root.addEventListener("input", (event) => {
 	if (event.target instanceof HTMLInputElement) handleInput(event.target);
 });
 
-animationModeElement.addEventListener("change", () => {
-	state.animation.mode =
-		animationModeElement.value === "composed" ? "composed" : "steps";
-	resetAnimation(false);
-	renderUi();
-});
-
 root.addEventListener("change", (event) => {
 	const target = event.target as HTMLElement;
+	if (target === animationModeElement) {
+		state.animation.mode =
+			animationModeElement.value === "composed" ? "composed" : "steps";
+		resetAnimation(false);
+		renderUi();
+	}
 	if (target === languageElement) {
 		locale = languageElement.value === "zh-Hant" ? "zh-Hant" : "en";
 		document.documentElement.lang = locale;
@@ -661,8 +663,7 @@ function renderMatrixCard(matrix: MatrixNode): string {
 
 function renderVectorMatrix(): string {
 	const workspace = getWorkspace(state);
-	const columnWidth = 54;
-	const columnTemplate = `repeat(${workspace.vectors.length}, ${columnWidth}px) 44px`;
+	const columnTemplate = `repeat(${workspace.vectors.length}, var(--matrix-column-width)) 44px`;
 	const labels = workspace.vectors
 		.map(
 			(vector) => `
@@ -721,9 +722,7 @@ function renderVectorMatrix(): string {
 
 function renderResultMatrix(): string {
 	const workspace = getWorkspace(state);
-	const columnWidth = 54;
-	const columnTemplate = `repeat(${workspace.vectors.length}, ${columnWidth}px)`;
-	const totalTransform = getTotalTransform(workspace);
+	const columnTemplate = `repeat(${workspace.vectors.length}, var(--matrix-column-width))`;
 	const labels = workspace.vectors
 		.map(
 			(vector) => `
@@ -736,13 +735,7 @@ function renderResultMatrix(): string {
       `,
 		)
 		.join("");
-	const transformedVectors = workspace.vectors.map((vector) =>
-		applyMatrixToVector(
-			workspace.dimension,
-			totalTransform,
-			vector.components,
-		).slice(0, workspace.dimension),
-	);
+	const transformedVectors = getTransformedVectors(workspace);
 	const entries = Array.from(
 		{ length: workspace.dimension },
 		(_, componentIndex) =>
@@ -944,7 +937,7 @@ function createVectorDragPreview(vectorId: string): HTMLElement {
       <math class="vector-label" aria-hidden="true">${renderVectorSymbol(vector.label)}</math>
       <span class="vector-color-label" aria-hidden="true"></span>
     </div>
-    <div class="vector-drag-preview-values" style="grid-template-columns:54px">
+    <div class="vector-drag-preview-values">
       ${vector.draftComponents
 			.slice(0, workspace.dimension)
 			.map(
@@ -1051,50 +1044,46 @@ function formatNumber(value: number): string {
 
 function updateAnimationHighlight(now: number): void {
 	const workspace = getWorkspace(state);
-	const activeStep = getActiveStepProgress(workspace, state.animation, now);
-	const composedProgress =
-		state.animation.status !== "idle" && state.animation.mode === "composed"
-			? Math.max(
-					0,
-					Math.min(
-						1,
-						((state.animation.status === "paused"
-							? state.animation.pausedAt
-							: now) -
-							state.animation.startedAt) /
-							Math.max(1, getAnimationDuration(workspace)),
-					),
-				)
-			: null;
-	stackElement
-		.querySelectorAll<HTMLElement>(".matrix-item[data-matrix-id]")
-		.forEach((item) => {
-			const isActive =
-				composedProgress !== null
-					? true
-					: item.dataset.matrixId === activeStep?.matrixId;
-			const progress =
-				composedProgress ??
-				(isActive && activeStep ? activeStep.progress : 0);
-			item.toggleAttribute("data-active-step", isActive);
-			if (isActive) item.setAttribute("aria-current", "step");
-			else item.removeAttribute("aria-current");
-			item.style.setProperty(
-				"--step-progress",
-				`${Math.max(0, Math.min(1, progress)) * 100}%`,
-			);
-		});
+	const progress = getAnimationProgress(workspace, state.animation, now);
+	const items = stackElement.querySelectorAll<HTMLElement>(
+		".matrix-item[data-matrix-id]",
+	);
+
+	if (!progress) {
+		items.forEach((item) => setAnimationHighlight(item, false, 0));
+		return;
+	}
+
+	if (progress.mode === "composed") {
+		items.forEach((item) =>
+			setAnimationHighlight(item, true, progress.progress),
+		);
+		return;
+	}
+
+	items.forEach((item) => {
+		const isActive = item.dataset.matrixId === progress.matrixId;
+		setAnimationHighlight(item, isActive, isActive ? progress.progress : 0);
+	});
+}
+
+function setAnimationHighlight(
+	item: HTMLElement,
+	isActive: boolean,
+	progress: number,
+): void {
+	item.toggleAttribute("data-active-step", isActive);
+	if (isActive) item.setAttribute("aria-current", "step");
+	else item.removeAttribute("aria-current");
+	item.style.setProperty(
+		"--step-progress",
+		`${Math.max(0, Math.min(1, progress)) * 100}%`,
+	);
 }
 
 function updateResultOutputs(): void {
 	const workspace = getWorkspace(state);
-	const totalTransform = getTotalTransform(workspace);
-	workspace.vectors.forEach((vector, vectorIndex) => {
-		const transformed = applyMatrixToVector(
-			workspace.dimension,
-			totalTransform,
-			vector.components,
-		);
+	getTransformedVectors(workspace).forEach((transformed, vectorIndex) => {
 		for (
 			let componentIndex = 0;
 			componentIndex < workspace.dimension;
@@ -1118,7 +1107,8 @@ function tick(now: number): void {
 	const workspace = getWorkspace(state);
 	if (
 		state.animation.status === "playing" &&
-		now - state.animation.startedAt >= getAnimationDuration(workspace)
+		getAnimationElapsed(state.animation, now) >=
+			getAnimationDuration(workspace, state.animation.mode)
 	) {
 		workspace.appliedTransform = getTotalTransform(workspace);
 		state.animation.status = "idle";
