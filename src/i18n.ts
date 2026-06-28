@@ -44,7 +44,12 @@ const en = {
 	addDescription: "Add an editable matrix or vector to the equation.",
 	expressions: "Expressions",
 	expressionsDescription:
-		"Entries accept fractions, powers, sqrt, sin, cos, tan, and pi; angles use radians.",
+		"Entries accept arithmetic expressions, constants, and functions.",
+	expressionOperators: "Operators",
+	expressionOperatorsDescription: "Multiplication must be explicit.",
+	expressionFunctions: "Functions",
+	expressionFunctionsDescription: "Trigonometric arguments use radians.",
+	expressionExamples: "Examples",
 	gestures: "Canvas & equation gestures",
 	reorder: "Reorder",
 	reorderDescription:
@@ -131,8 +136,12 @@ const zhHant: Messages = {
 	basisDescription: "顯示或隱藏變換後的基底向量。",
 	addDescription: "在方程式中加入可編輯的矩陣或向量。",
 	expressions: "運算式",
-	expressionsDescription:
-		"元素可輸入分數、次方、sqrt、sin、cos、tan 與 pi；角度使用弧度。",
+	expressionsDescription: "元素可輸入算術運算式、常數與函數。",
+	expressionOperators: "運算子",
+	expressionOperatorsDescription: "乘法必須明確寫出乘號。",
+	expressionFunctions: "函數",
+	expressionFunctionsDescription: "三角函數的引數使用弧度。",
+	expressionExamples: "範例",
 	gestures: "畫布與方程式操作",
 	reorder: "重新排序",
 	reorderDescription:

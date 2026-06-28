@@ -124,13 +124,27 @@ root.innerHTML = `
         <div role="row"><span role="cell"><kbd data-i18n="basis">${t("basis")}</kbd></span><span role="cell" data-i18n="basisDescription">${t("basisDescription")}</span></div>
         <div role="row">
           <span class="guide-add-controls" role="cell">
-            <span class="equation-add-button guide-add-button" aria-label="${t("addMatrix")}" data-i18n-aria="addMatrix"><math aria-hidden="true"><mo>+</mo><mi>M</mi></math></span>
-            <span class="equation-add-button guide-add-button" aria-label="${t("addVector")}" data-i18n-aria="addVector"><math aria-hidden="true"><mo>+</mo><mi>v</mi></math></span>
+            <span class="preset-split guide-add-split" aria-label="${t("addMatrix")}" data-i18n-aria="addMatrix">
+              <span class="equation-add-button preset-main guide-add-button"><math aria-hidden="true"><mo>+</mo><mi>M</mi></math></span>
+              <span class="preset-menu" aria-hidden="true"><span class="preset-toggle"></span></span>
+            </span>
+            <span class="preset-split guide-add-split" aria-label="${t("addVector")}" data-i18n-aria="addVector">
+              <span class="equation-add-button preset-main guide-add-button"><math aria-hidden="true"><mo>+</mo><mi>v</mi></math></span>
+              <span class="preset-menu" aria-hidden="true"><span class="preset-toggle"></span></span>
+            </span>
           </span>
           <span role="cell" data-i18n="addDescription">${t("addDescription")}</span>
         </div>
-        <div role="row"><span role="cell"><kbd data-i18n="expressions">${t("expressions")}</kbd></span><span role="cell" data-i18n="expressionsDescription">${t("expressionsDescription")}</span></div>
       </div>
+      <section class="interaction-guide expression-guide" aria-labelledby="expression-guide-title">
+        <h2 id="expression-guide-title" data-i18n="expressions">${t("expressions")}</h2>
+        <p data-i18n="expressionsDescription">${t("expressionsDescription")}</p>
+        <dl>
+          <div><dt data-i18n="expressionOperators">${t("expressionOperators")}</dt><dd><span class="expression-tokens"><code>+</code><code>-</code><code>*</code><code>/</code><code>^</code><code>( )</code></span><span data-i18n="expressionOperatorsDescription">${t("expressionOperatorsDescription")}</span></dd></div>
+          <div><dt data-i18n="expressionFunctions">${t("expressionFunctions")}</dt><dd><span class="expression-tokens"><code>pi</code><code>sqrt(x)</code><code>sin(x)</code><code>cos(x)</code><code>tan(x)</code></span><span data-i18n="expressionFunctionsDescription">${t("expressionFunctionsDescription")}</span></dd></div>
+          <div><dt data-i18n="expressionExamples">${t("expressionExamples")}</dt><dd><span class="expression-tokens"><code>1/2</code><code>sqrt(2)/2</code><code>cos(pi/4)</code><code>2^(-3)</code></span></dd></div>
+        </dl>
+      </section>
       <section class="interaction-guide" aria-labelledby="interaction-guide-title">
         <h2 id="interaction-guide-title" data-i18n="gestures">${t("gestures")}</h2>
         <dl>
@@ -759,7 +773,7 @@ function renderMatrixAddControl(positionClass: string): string {
         <math aria-hidden="true"><mo>+</mo><mi>M</mi></math>
       </button>
       <details class="preset-menu">
-        <summary aria-label="${t("matrixPresets")}" title="${t("matrixPresets")}" aria-haspopup="menu" aria-expanded="false"></summary>
+        <summary class="preset-toggle" aria-label="${t("matrixPresets")}" title="${t("matrixPresets")}" aria-haspopup="menu" aria-expanded="false"></summary>
         <div class="preset-menu-panel" role="menu" aria-label="${t("matrixPresets")}">
           ${getMatrixPresets(getWorkspace(state).dimension)
 				.map(
@@ -790,7 +804,7 @@ function renderVectorAddControl(positionClass: string): string {
         <math aria-hidden="true"><mo>+</mo><mi>v</mi></math>
       </button>
       <details class="preset-menu">
-        <summary aria-label="${t("vectorPresets")}" title="${t("vectorPresets")}" aria-haspopup="menu" aria-expanded="false"></summary>
+        <summary class="preset-toggle" aria-label="${t("vectorPresets")}" title="${t("vectorPresets")}" aria-haspopup="menu" aria-expanded="false"></summary>
         <div class="preset-menu-panel" role="menu" aria-label="${t("vectorPresets")}">
           <button type="button" role="menuitem" data-action="add-eigenvector" ${vectorAvailable ? "" : "disabled"}>${t("oneEigenvector")}</button>
           <span class="preset-unavailable" data-eigenvector-unavailable ${vectorAvailable ? "hidden" : ""}>${t("eigenvectorUnavailable")}</span>

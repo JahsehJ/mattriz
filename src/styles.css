@@ -308,9 +308,8 @@ a:focus-visible {
 	gap: 7px;
 }
 
-.guide-add-button {
-	width: 44px;
-	min-height: 44px;
+.guide-add-split {
+	pointer-events: none;
 }
 
 .interaction-guide {
@@ -323,6 +322,28 @@ a:focus-visible {
 	font-size: 0.72rem;
 	letter-spacing: 0.08em;
 	text-transform: uppercase;
+}
+
+.expression-guide > p {
+	margin: 0 0 10px;
+	color: #bfd0cf;
+	font-size: 0.82rem;
+	line-height: 1.45;
+}
+
+.expression-tokens {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 5px;
+	margin: 7px 0;
+}
+
+.expression-tokens code {
+	padding: 2px 5px;
+	border: 1px solid #344a50;
+	border-radius: 4px;
+	background: #111b1e;
+	color: #edf5f2;
 }
 
 .interaction-guide dl {
@@ -351,6 +372,10 @@ a:focus-visible {
 	color: #bfd0cf;
 	font-size: 0.82rem;
 	line-height: 1.45;
+}
+
+.expression-guide dl {
+	grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 kbd {
@@ -564,7 +589,7 @@ kbd {
 	width: 16px;
 }
 
-.preset-menu > summary {
+.preset-menu > .preset-toggle {
 	display: grid;
 	width: 16px;
 	height: 100%;
@@ -580,18 +605,18 @@ kbd {
 	anchor-name: --preset-trigger;
 }
 
-.preset-menu > summary::-webkit-details-marker {
+summary.preset-toggle::-webkit-details-marker {
 	display: none;
 }
 
-.preset-menu > summary::after {
+.preset-toggle::after {
 	content: "▾";
 	font-size: 0.62rem;
 }
 
-.preset-menu > summary:hover,
-.preset-menu > summary:focus-visible,
-.preset-menu[open] > summary {
+summary.preset-toggle:hover,
+summary.preset-toggle:focus-visible,
+.preset-menu[open] > summary.preset-toggle {
 	border-color: #f4b740;
 	background: rgb(244 183 64 / 10%);
 	color: #edf5f2;
@@ -686,7 +711,7 @@ kbd {
 	margin-bottom: 0;
 }
 
-.vector-add-button-inline .preset-menu > summary {
+.vector-add-button-inline .preset-toggle {
 	min-height: 34px;
 }
 
