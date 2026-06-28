@@ -11,6 +11,7 @@ import {
 
 export type AnimationMode = "steps" | "composed";
 export type PlaybackStatus = "idle" | "playing" | "paused";
+export const MAX_WORKSPACE_NODES = 64;
 
 export interface MatrixNode {
 	id: string;
@@ -122,6 +123,18 @@ export function createVectorNode(
 
 export function getWorkspace(state: AppState): Workspace {
 	return state.workspaces[state.activeDimension];
+}
+
+export function canAddWorkspaceNodes(
+	workspace: Workspace,
+	kind: "matrices" | "vectors",
+	count = 1,
+): boolean {
+	return (
+		Number.isInteger(count) &&
+		count >= 0 &&
+		workspace[kind].length + count <= MAX_WORKSPACE_NODES
+	);
 }
 
 export function getTotalTransform(workspace: Workspace): MatrixValues {

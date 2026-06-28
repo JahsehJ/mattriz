@@ -4,6 +4,7 @@ import { MatrixScene } from "./scene";
 import {
 	AppState,
 	MatrixNode,
+	canAddWorkspaceNodes,
 	createInitialState,
 	createMatrixNode,
 	createVectorNode,
@@ -25,8 +26,13 @@ import {
 import { Locale, MessageKey, translate } from "./i18n";
 import { evaluateBoundedExpression } from "./expression";
 import { MatrixPreset, getMatrixPresets } from "./presets";
+import {
+	MAX_SHARE_FRAGMENT_LENGTH,
+	decodeShareSession,
+	encodeShareSession,
+} from "./share";
 
-const state: AppState = createInitialState();
+let state: AppState = createInitialState();
 const appVersion = packageJson.version;
 let locale: Locale = "en";
 const t = (key: MessageKey, values?: Record<string, string | number>): string =>
@@ -73,7 +79,9 @@ root.innerHTML = `
           <option value="zh-Hant">繁體中文</option>
         </select>
         <button type="button" data-action="reset-view" data-i18n="resetView">${t("resetView")}</button>
+        <button type="button" data-action="share" data-i18n="share">${t("share")}</button>
         <button type="button" data-action="open-about" aria-haspopup="dialog" data-i18n="about">${t("about")}</button>
+        <span class="share-status" data-share-status role="status" aria-live="polite"></span>
       </div>
     </section>
     <footer class="panel" aria-label="${t("controls")}" data-i18n-aria="controls">
@@ -161,6 +169,13 @@ root.innerHTML = `
         <small class="about-version">v${appVersion}</small>
       </footer>
     </dialog>
+    <dialog class="share-error-dialog" aria-labelledby="share-error-title">
+      <div class="share-error-content">
+        <h1 id="share-error-title" data-i18n="invalidShareTitle">${t("invalidShareTitle")}</h1>
+        <p data-i18n="invalidShareDescription">${t("invalidShareDescription")}</p>
+        <button type="button" data-action="close-share-error" data-i18n="close">${t("close")}</button>
+      </div>
+    </dialog>
   </main>
 `;
 
@@ -171,12 +186,23 @@ const animationMode = root.querySelector<HTMLSelectElement>(
 );
 const language = root.querySelector<HTMLSelectElement>("[data-language]");
 const aboutDialog = root.querySelector<HTMLDialogElement>(".about-dialog");
-if (!canvas || !matrixStack || !animationMode || !language || !aboutDialog) {
+const shareErrorDialog = root.querySelector<HTMLDialogElement>(
+	".share-error-dialog",
+);
+if (
+	!canvas ||
+	!matrixStack ||
+	!animationMode ||
+	!language ||
+	!aboutDialog ||
+	!shareErrorDialog
+) {
 	throw new Error("Missing app controls");
 }
 const stackElement = matrixStack;
 const animationModeElement = animationMode;
 const languageElement = language;
+const shareErrorDialogElement = shareErrorDialog;
 
 const scene = new MatrixScene(canvas);
 
@@ -186,6 +212,7 @@ root.addEventListener("click", (event) => {
 		aboutDialog.close();
 		return;
 	}
+	if (target === shareErrorDialog) return;
 	const dimensionButton =
 		target.closest<HTMLButtonElement>("[data-dimension]");
 	const actionButton = target.closest<HTMLButtonElement>("[data-action]");
@@ -208,8 +235,10 @@ root.addEventListener("click", (event) => {
 	if (action === "play") togglePlayback();
 	if (action === "reset") resetTransform();
 	if (action === "reset-view") resetView();
+	if (action === "share") void shareWorkspace();
 	if (action === "open-about") aboutDialog.showModal();
 	if (action === "close-about") aboutDialog.close();
+	if (action === "close-share-error") shareErrorDialog.close();
 	if (action === "delete-matrix" && actionButton.dataset.id)
 		deleteMatrix(actionButton.dataset.id);
 	if (action === "delete-vector" && actionButton.dataset.id)
@@ -377,6 +406,7 @@ function finishDragging(): void {
 
 function addMatrix(): void {
 	const workspace = getWorkspace(state);
+	if (!canAddWorkspaceNodes(workspace, "matrices")) return;
 	workspace.matrices.unshift(
 		createMatrixNode(
 			workspace.dimension,
@@ -388,6 +418,7 @@ function addMatrix(): void {
 
 function addVector(): void {
 	const workspace = getWorkspace(state);
+	if (!canAddWorkspaceNodes(workspace, "vectors")) return;
 	const color = vectorColors[workspace.vectors.length % vectorColors.length];
 	workspace.vectors.push(
 		createVectorNode(
@@ -404,7 +435,7 @@ function addMatrixPreset(presetId: string): void {
 	const preset = getMatrixPresets(workspace.dimension).find(
 		(item) => item.id === presetId,
 	);
-	if (!preset) return;
+	if (!preset || !canAddWorkspaceNodes(workspace, "matrices")) return;
 	workspace.matrices.unshift(
 		createMatrixNode(
 			workspace.dimension,
@@ -422,7 +453,8 @@ function addEigenbasis(): void {
 		workspace.dimension,
 		getTotalTransform(workspace),
 	);
-	if (!basis) return;
+	if (!basis || !canAddWorkspaceNodes(workspace, "vectors", basis.length))
+		return;
 	for (const components of basis) {
 		const color =
 			vectorColors[workspace.vectors.length % vectorColors.length];
@@ -443,6 +475,7 @@ function addEigenbasis(): void {
 
 function addRepresentativeEigenvector(): void {
 	const workspace = getWorkspace(state);
+	if (!canAddWorkspaceNodes(workspace, "vectors")) return;
 	const vector = getRepresentativeRealEigenvector(
 		workspace.dimension,
 		getTotalTransform(workspace),
@@ -661,6 +694,51 @@ function resetView(): void {
 	scene.resetView(state.activeDimension);
 }
 
+let shareStatusTimer = 0;
+
+async function shareWorkspace(): Promise<void> {
+	const now = performance.now();
+	const elapsedMs =
+		state.animation.status === "idle"
+			? 0
+			: getAnimationElapsed(state.animation, now);
+	try {
+		const payload = await encodeShareSession({
+			state,
+			elapsedMs,
+			cameras: scene.getCameraSnapshots(),
+		});
+		const url = new URL(window.location.href);
+		url.hash = `s=${payload}`;
+		if (url.href.length > MAX_SHARE_FRAGMENT_LENGTH)
+			throw new Error("Share payload is too large");
+		await navigator.clipboard.writeText(url.href);
+		window.history.replaceState(window.history.state, "", url);
+		setShareStatus("copied");
+	} catch (error) {
+		setShareStatus(
+			error instanceof Error &&
+				error.message === "Share payload is too large"
+				? "shareTooLarge"
+				: "copyFailed",
+		);
+	}
+}
+
+function setShareStatus(key: MessageKey): void {
+	window.clearTimeout(shareStatusTimer);
+	const button = root.querySelector<HTMLButtonElement>(
+		"[data-action='share']",
+	);
+	const status = root.querySelector<HTMLElement>("[data-share-status]");
+	if (button) button.textContent = t(key);
+	if (status) status.textContent = t(key);
+	shareStatusTimer = window.setTimeout(() => {
+		if (button) button.textContent = t("share");
+		if (status) status.textContent = "";
+	}, 2_000);
+}
+
 function localizeStaticUi(): void {
 	root.querySelectorAll<HTMLElement>("[data-i18n]").forEach((element) => {
 		element.textContent = t(element.dataset.i18n as MessageKey);
@@ -767,9 +845,13 @@ function renderAddVectorOperand(): string {
 }
 
 function renderMatrixAddControl(positionClass: string): string {
+	const workspace = getWorkspace(state);
+	const addDisabled = canAddWorkspaceNodes(workspace, "matrices")
+		? ""
+		: "disabled";
 	return `
     <div class="preset-split matrix-add-button ${positionClass}">
-      <button class="equation-add-button preset-main" type="button" data-action="add-matrix" aria-label="${t("addMatrix")}" title="${t("addMatrix")}">
+      <button class="equation-add-button preset-main" type="button" data-action="add-matrix" aria-label="${t("addMatrix")}" title="${t("addMatrix")}" ${addDisabled}>
         <math aria-hidden="true"><mo>+</mo><mi>M</mi></math>
       </button>
       <details class="preset-menu">
@@ -778,7 +860,7 @@ function renderMatrixAddControl(positionClass: string): string {
           ${getMatrixPresets(getWorkspace(state).dimension)
 				.map(
 					(preset) => `
-            <button type="button" role="menuitem" data-action="add-matrix-preset" data-preset-id="${preset.id}">
+            <button type="button" role="menuitem" data-action="add-matrix-preset" data-preset-id="${preset.id}" ${addDisabled}>
               ${escapeHtml(matrixPresetName(preset))}
             </button>`,
 				)
@@ -792,15 +874,19 @@ function renderMatrixAddControl(positionClass: string): string {
 function renderVectorAddControl(positionClass: string): string {
 	const workspace = getWorkspace(state);
 	const transform = getTotalTransform(workspace);
+	const vectorCapacity = canAddWorkspaceNodes(workspace, "vectors");
+	const basis = getRealEigenbasis(workspace.dimension, transform);
 	const basisAvailable = Boolean(
-		getRealEigenbasis(workspace.dimension, transform),
+		basis && canAddWorkspaceNodes(workspace, "vectors", basis.length),
 	);
-	const vectorAvailable = Boolean(
-		getRepresentativeRealEigenvector(workspace.dimension, transform),
-	);
+	const vectorAvailable =
+		Boolean(
+			getRepresentativeRealEigenvector(workspace.dimension, transform),
+		) && vectorCapacity;
+	const addDisabled = vectorCapacity ? "" : "disabled";
 	return `
     <div class="preset-split vector-add-button ${positionClass}">
-      <button class="equation-add-button preset-main" type="button" data-action="add-vector" aria-label="${t("addVector")}" title="${t("addVector")}">
+      <button class="equation-add-button preset-main" type="button" data-action="add-vector" aria-label="${t("addVector")}" title="${t("addVector")}" ${addDisabled}>
         <math aria-hidden="true"><mo>+</mo><mi>v</mi></math>
       </button>
       <details class="preset-menu">
@@ -819,12 +905,14 @@ function renderVectorAddControl(positionClass: string): string {
 function updateVectorPresetAvailability(): void {
 	const workspace = getWorkspace(state);
 	const transform = getTotalTransform(workspace);
+	const basis = getRealEigenbasis(workspace.dimension, transform);
 	const basisAvailable = Boolean(
-		getRealEigenbasis(workspace.dimension, transform),
+		basis && canAddWorkspaceNodes(workspace, "vectors", basis.length),
 	);
-	const vectorAvailable = Boolean(
-		getRepresentativeRealEigenvector(workspace.dimension, transform),
-	);
+	const vectorAvailable =
+		Boolean(
+			getRepresentativeRealEigenvector(workspace.dimension, transform),
+		) && canAddWorkspaceNodes(workspace, "vectors");
 	root.querySelectorAll<HTMLButtonElement>(
 		"[data-action='add-eigenbasis']",
 	).forEach((button) => {
@@ -1459,8 +1547,28 @@ function tick(now: number): void {
 	requestAnimationFrame(tick);
 }
 
-renderUi();
-requestAnimationFrame(tick);
+async function initialize(): Promise<void> {
+	const hash = window.location.hash;
+	if (hash.startsWith("#s=")) {
+		try {
+			const restored = await decodeShareSession(hash.slice(3));
+			state = restored.state;
+			if (state.animation.status === "paused") {
+				const now = performance.now();
+				state.animation.startedAt = now - restored.elapsedMs;
+				state.animation.pausedAt = now;
+			}
+			scene.restoreCameraSnapshots(restored.cameras);
+		} catch {
+			state = createInitialState();
+			shareErrorDialogElement.showModal();
+		}
+	}
+	renderUi();
+	requestAnimationFrame(tick);
+}
+
+void initialize();
 
 if (import.meta.env.PROD && "serviceWorker" in navigator) {
 	window.addEventListener("load", () => {

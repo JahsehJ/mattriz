@@ -10,6 +10,7 @@ import {
 	applyMatrixToVector,
 } from "./math";
 import { RenderState } from "./state";
+import type { CameraSnapshot, CameraSnapshots } from "./share";
 
 const GRID_EXTENT = 240;
 const GRID_STEP = 1;
@@ -175,6 +176,32 @@ export class MatrixScene {
 		this.perspectiveControls.update();
 	}
 
+	getCameraSnapshots(): CameraSnapshots {
+		return {
+			2: this.getCameraSnapshot(
+				this.orthoCamera,
+				this.orthoControls.target,
+			),
+			3: this.getCameraSnapshot(
+				this.perspectiveCamera,
+				this.perspectiveControls.target,
+			),
+		};
+	}
+
+	restoreCameraSnapshots(snapshots: CameraSnapshots): void {
+		this.restoreCameraSnapshot(
+			this.orthoCamera,
+			this.orthoControls,
+			snapshots[2],
+		);
+		this.restoreCameraSnapshot(
+			this.perspectiveCamera,
+			this.perspectiveControls,
+			snapshots[3],
+		);
+	}
+
 	render(state: RenderState): void {
 		this.resize();
 		this.dimension = state.dimension;
@@ -224,6 +251,33 @@ export class MatrixScene {
 		}
 
 		this.perspectiveControls.update();
+	}
+
+	private getCameraSnapshot(
+		camera: THREE.Camera & { zoom: number },
+		target: THREE.Vector3,
+	): CameraSnapshot {
+		return {
+			position: camera.position.toArray(),
+			target: target.toArray(),
+			zoom: camera.zoom,
+		};
+	}
+
+	private restoreCameraSnapshot(
+		camera: THREE.Camera & {
+			zoom: number;
+			updateProjectionMatrix(): void;
+		},
+		controls: OrbitControls,
+		snapshot: CameraSnapshot,
+	): void {
+		camera.position.fromArray(snapshot.position);
+		camera.zoom = snapshot.zoom;
+		controls.target.fromArray(snapshot.target);
+		camera.lookAt(controls.target);
+		camera.updateProjectionMatrix();
+		controls.update();
 	}
 
 	private updateGrid(dimension: Dimension, matrix: MatrixValues): void {

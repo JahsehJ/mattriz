@@ -4,6 +4,8 @@ import {
 	AnimationState,
 	MatrixNode,
 	Workspace,
+	MAX_WORKSPACE_NODES,
+	canAddWorkspaceNodes,
 	createInitialState,
 	createMatrixNode,
 	createVectorNode,
@@ -59,6 +61,19 @@ describe("workspace lifecycle", () => {
 			dimension: 2,
 			vectors: state.workspaces[2].vectors,
 		});
+	});
+
+	it("enforces the workspace node limit for single and batch additions", () => {
+		const workspace = createInitialState().workspaces[2];
+		workspace.vectors = Array.from(
+			{ length: MAX_WORKSPACE_NODES - 1 },
+			() => createVectorNode(2, "v1", "#ffffff"),
+		);
+
+		expect(canAddWorkspaceNodes(workspace, "vectors")).toBe(true);
+		expect(canAddWorkspaceNodes(workspace, "vectors", 2)).toBe(false);
+		workspace.vectors.push(createVectorNode(2, "v1", "#ffffff"));
+		expect(canAddWorkspaceNodes(workspace, "vectors")).toBe(false);
 	});
 
 	it("shows the committed transform while idle, not uncommitted matrix edits", () => {

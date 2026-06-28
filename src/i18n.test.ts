@@ -15,4 +15,11 @@ describe("translations", () => {
 			}),
 		).toBe("A 第 2 列第 3 欄");
 	});
+
+	it("localizes share security and clipboard feedback", () => {
+		expect(translate("zh-Hant", "share")).toBe("分享");
+		expect(translate("en", "invalidShareTitle")).toBe(
+			"Invalid shared workspace",
+		);
+	});
 });

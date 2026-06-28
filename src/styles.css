@@ -126,6 +126,17 @@ a:focus-visible {
 	padding: 0 8px;
 }
 
+.share-status {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
+}
+
 .panel {
 	display: grid;
 	grid-template-columns: 132px minmax(0, 1fr);
@@ -202,6 +213,40 @@ a:focus-visible {
 .about-dialog::backdrop {
 	background: rgb(5 9 10 / 76%);
 	backdrop-filter: blur(5px);
+}
+
+.share-error-dialog {
+	width: min(440px, calc(100vw - 32px));
+	padding: 0;
+	border: 1px solid #3a5056;
+	border-radius: 14px;
+	background: #131c1f;
+	color: #edf5f2;
+	box-shadow: 0 24px 80px rgb(0 0 0 / 55%);
+}
+
+.share-error-dialog::backdrop {
+	background: rgb(5 9 10 / 76%);
+	backdrop-filter: blur(5px);
+}
+
+.share-error-content {
+	display: grid;
+	gap: 16px;
+	padding: 24px;
+}
+
+.share-error-content h1,
+.share-error-content p {
+	margin: 0;
+}
+
+.share-error-content h1 {
+	font-size: 1.25rem;
+}
+
+.share-error-content button {
+	justify-self: end;
 }
 
 .about-dialog-header {
