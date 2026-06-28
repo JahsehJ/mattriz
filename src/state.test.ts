@@ -60,6 +60,7 @@ describe("workspace lifecycle", () => {
 		expect(getRenderState(state, 0)).toMatchObject({
 			dimension: 2,
 			vectors: state.workspaces[2].vectors,
+			showGrid: true,
 		});
 	});
 

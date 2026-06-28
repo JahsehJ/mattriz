@@ -112,7 +112,10 @@ a:focus-visible {
 	top: 18px;
 	right: 18px;
 	display: flex;
+	flex-wrap: wrap;
+	justify-content: flex-end;
 	gap: 6px;
+	max-width: calc(100% - 170px);
 }
 
 .view-tools button,
@@ -215,7 +218,8 @@ a:focus-visible {
 	backdrop-filter: blur(5px);
 }
 
-.share-error-dialog {
+.share-error-dialog,
+.reset-workspace-dialog {
 	width: min(440px, calc(100vw - 32px));
 	padding: 0;
 	border: 1px solid #3a5056;
@@ -225,28 +229,48 @@ a:focus-visible {
 	box-shadow: 0 24px 80px rgb(0 0 0 / 55%);
 }
 
-.share-error-dialog::backdrop {
+.share-error-dialog::backdrop,
+.reset-workspace-dialog::backdrop {
 	background: rgb(5 9 10 / 76%);
 	backdrop-filter: blur(5px);
 }
 
-.share-error-content {
+.share-error-content,
+.reset-workspace-content {
 	display: grid;
 	gap: 16px;
 	padding: 24px;
 }
 
 .share-error-content h1,
-.share-error-content p {
+.share-error-content p,
+.reset-workspace-content h1,
+.reset-workspace-content p {
 	margin: 0;
 }
 
-.share-error-content h1 {
+.share-error-content h1,
+.reset-workspace-content h1 {
 	font-size: 1.25rem;
 }
 
 .share-error-content button {
 	justify-self: end;
+}
+
+.reset-workspace-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+}
+
+.danger-button {
+	border-color: #8d4447;
+	background: #5c292c;
+}
+
+.danger-button:hover {
+	border-color: #d76a6f;
 }
 
 .about-dialog-header {
@@ -527,6 +551,11 @@ kbd {
 .toggle-row {
 	grid-template-columns: 1fr auto;
 	align-items: center;
+	gap: 8px;
+}
+
+.visibility-toggles {
+	display: grid;
 	gap: 8px;
 }
 
@@ -1207,8 +1236,19 @@ summary.preset-toggle:focus-visible,
 }
 
 @media (max-width: 520px) {
-	.view-tools button {
+	.view-tools {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		width: calc(100% - 24px);
+		max-width: none;
+	}
+
+	.view-tools button,
+	.view-tools select {
 		min-width: 0;
+		width: 100%;
+		min-height: 30px;
+		font-size: 0.75rem;
 		padding-inline: 9px;
 	}
 

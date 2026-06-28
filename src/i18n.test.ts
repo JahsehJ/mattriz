@@ -22,4 +22,11 @@ describe("translations", () => {
 			"Invalid shared workspace",
 		);
 	});
+
+	it("localizes workspace reset confirmation", () => {
+		expect(translate("zh-Hant", "resetWorkspace")).toBe("重設工作區");
+		expect(translate("en", "confirmResetWorkspace")).toBe(
+			"Reset everything",
+		);
+	});
 });

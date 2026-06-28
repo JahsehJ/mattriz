@@ -205,7 +205,7 @@ export class MatrixScene {
 	render(state: RenderState): void {
 		this.resize();
 		this.dimension = state.dimension;
-		this.updateGrid(state.dimension, state.transform);
+		this.updateGrid(state.dimension, state.transform, state.showGrid);
 		this.updateAxisLabels(state.dimension, state.transform);
 		this.updateBasis(state.dimension, state.transform, state.showBasis);
 		this.updateVectors(state.dimension, state.transform, state.vectors);
@@ -280,10 +280,14 @@ export class MatrixScene {
 		controls.update();
 	}
 
-	private updateGrid(dimension: Dimension, matrix: MatrixValues): void {
-		this.gridPlanes.xy.visible = true;
-		this.gridPlanes.xz.visible = dimension === 3;
-		this.gridPlanes.yz.visible = dimension === 3;
+	private updateGrid(
+		dimension: Dimension,
+		matrix: MatrixValues,
+		visible: boolean,
+	): void {
+		this.gridPlanes.xy.visible = visible;
+		this.gridPlanes.xz.visible = visible && dimension === 3;
+		this.gridPlanes.yz.visible = visible && dimension === 3;
 
 		this.gridGroup.matrixAutoUpdate = false;
 		this.gridGroup.matrix.copy(toMatrix4(dimension, matrix));

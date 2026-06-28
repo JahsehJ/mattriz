@@ -48,6 +48,7 @@ export interface AppState {
 	workspaces: Record<Dimension, Workspace>;
 	animation: AnimationState;
 	showBasis: boolean;
+	showGrid: boolean;
 }
 
 export interface RenderState {
@@ -55,6 +56,7 @@ export interface RenderState {
 	transform: MatrixValues;
 	vectors: VectorNode[];
 	showBasis: boolean;
+	showGrid: boolean;
 }
 
 export type AnimationProgress =
@@ -84,6 +86,7 @@ export function createInitialState(): AppState {
 			pausedAt: 0,
 		},
 		showBasis: true,
+		showGrid: true,
 	};
 }
 
@@ -170,6 +173,7 @@ export function getRenderState(state: AppState, now: number): RenderState {
 		),
 		vectors: workspace.vectors,
 		showBasis: state.showBasis,
+		showGrid: state.showGrid,
 	};
 }
 

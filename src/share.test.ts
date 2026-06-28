@@ -20,6 +20,7 @@ function session(): ShareSession {
 	const state = createInitialState();
 	state.activeDimension = 2;
 	state.showBasis = false;
+	state.showGrid = false;
 	state.animation.mode = "composed";
 	state.animation.status = "playing";
 	state.workspaces[2].matrices[0].draftValues = [
@@ -74,6 +75,7 @@ describe("share session codec", () => {
 		expect(restored.state).toMatchObject({
 			activeDimension: 2,
 			showBasis: false,
+			showGrid: false,
 			animation: { mode: "composed", status: "paused" },
 		});
 		expect(restored.state.workspaces[2].matrices[0]).toMatchObject({

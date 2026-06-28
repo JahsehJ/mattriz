@@ -108,9 +108,10 @@ function toTuple(session: ShareSession): JsonValue {
 		return [item.position, item.target, item.zoom];
 	};
 	return [
-		1,
+		2,
 		state.activeDimension,
 		state.showBasis ? 1 : 0,
+		state.showGrid ? 1 : 0,
 		state.animation.mode === "composed" ? 1 : 0,
 		state.animation.status === "idle" ? 0 : 1,
 		session.elapsedMs,
@@ -122,20 +123,26 @@ function toTuple(session: ShareSession): JsonValue {
 }
 
 function fromTuple(value: unknown): ShareSession {
-	const root = tuple(value, 10);
-	if (root[0] !== 1) throw new Error("Unsupported share payload");
+	if (!Array.isArray(value)) throw new Error("Invalid share payload shape");
+	const version: unknown = value[0];
+	if (version !== 1 && version !== 2)
+		throw new Error("Unsupported share payload");
+	const root = tuple(value, version === 1 ? 10 : 11);
+	const offset = version === 1 ? 0 : 1;
 	const activeDimension = dimension(root[1]);
 	const showBasis = flag(root[2]);
-	const mode: AnimationMode = flag(root[3]) ? "composed" : "steps";
-	const paused = flag(root[4]);
-	const elapsedMs = finiteNumber(root[5], 0, 384_000);
-	const workspace2 = parseWorkspace(root[6], 2);
-	const workspace3 = parseWorkspace(root[7], 3);
+	const showGrid = version === 1 ? true : flag(root[3]);
+	const mode: AnimationMode = flag(root[3 + offset]) ? "composed" : "steps";
+	const paused = flag(root[4 + offset]);
+	const elapsedMs = finiteNumber(root[5 + offset], 0, 384_000);
+	const workspace2 = parseWorkspace(root[6 + offset], 2);
+	const workspace3 = parseWorkspace(root[7 + offset], 3);
 
 	return {
 		state: {
 			activeDimension,
 			showBasis,
+			showGrid,
 			workspaces: { 2: workspace2, 3: workspace3 },
 			animation: {
 				mode,
@@ -146,8 +153,8 @@ function fromTuple(value: unknown): ShareSession {
 		},
 		elapsedMs,
 		cameras: {
-			2: parseCamera(root[8]),
-			3: parseCamera(root[9]),
+			2: parseCamera(root[8 + offset]),
+			3: parseCamera(root[9 + offset]),
 		},
 	};
 }

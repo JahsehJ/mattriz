@@ -79,6 +79,7 @@ root.innerHTML = `
           <option value="zh-Hant">繁體中文</option>
         </select>
         <button type="button" data-action="reset-view" data-i18n="resetView">${t("resetView")}</button>
+        <button type="button" data-action="open-reset-workspace" aria-haspopup="dialog" data-i18n="resetWorkspace">${t("resetWorkspace")}</button>
         <button type="button" data-action="share" data-i18n="share">${t("share")}</button>
         <button type="button" data-action="open-about" aria-haspopup="dialog" data-i18n="about">${t("about")}</button>
         <span class="share-status" data-share-status role="status" aria-live="polite"></span>
@@ -102,10 +103,16 @@ root.innerHTML = `
             </label>
           </div>
         </fieldset>
-        <label class="toggle-row" for="show-basis">
-          <span class="toggle-label" data-i18n="basis">${t("basis")}</span>
-          <input id="show-basis" name="show-basis" type="checkbox" data-action="toggle-basis" checked />
-        </label>
+        <div class="visibility-toggles">
+          <label class="toggle-row" for="show-basis">
+            <span class="toggle-label" data-i18n="basis">${t("basis")}</span>
+            <input id="show-basis" name="show-basis" type="checkbox" data-action="toggle-basis" checked />
+          </label>
+          <label class="toggle-row" for="show-grid">
+            <span class="toggle-label" data-i18n="grid">${t("grid")}</span>
+            <input id="show-grid" name="show-grid" type="checkbox" data-action="toggle-grid" checked />
+          </label>
+        </div>
       </section>
       <section class="equation-tray" data-matrix-stack aria-label="${t("transformationEquation")}" data-i18n-aria="transformationEquation"></section>
     </footer>
@@ -130,6 +137,7 @@ root.innerHTML = `
         <div role="row"><span role="cell"><kbd data-i18n="reset">${t("reset")}</kbd></span><span role="cell" data-i18n="resetDescription">${t("resetDescription")}</span></div>
         <div role="row"><span role="cell"><kbd data-i18n="method">${t("method")}</kbd></span><span role="cell" data-i18n="methodDescription">${t("methodDescription")}</span></div>
         <div role="row"><span role="cell"><kbd data-i18n="basis">${t("basis")}</kbd></span><span role="cell" data-i18n="basisDescription">${t("basisDescription")}</span></div>
+        <div role="row"><span role="cell"><kbd data-i18n="grid">${t("grid")}</kbd></span><span role="cell" data-i18n="gridDescription">${t("gridDescription")}</span></div>
         <div role="row">
           <span class="guide-add-controls" role="cell">
             <span class="preset-split guide-add-split" aria-label="${t("addMatrix")}" data-i18n-aria="addMatrix">
@@ -176,6 +184,16 @@ root.innerHTML = `
         <button type="button" data-action="close-share-error" data-i18n="close">${t("close")}</button>
       </div>
     </dialog>
+    <dialog class="reset-workspace-dialog" aria-labelledby="reset-workspace-title">
+      <div class="reset-workspace-content">
+        <h1 id="reset-workspace-title" data-i18n="resetWorkspaceTitle">${t("resetWorkspaceTitle")}</h1>
+        <p data-i18n="resetWorkspaceDescription">${t("resetWorkspaceDescription")}</p>
+        <div class="reset-workspace-actions">
+          <button type="button" data-action="close-reset-workspace" data-i18n="cancel">${t("cancel")}</button>
+          <button class="danger-button" type="button" data-action="confirm-reset-workspace" data-i18n="confirmResetWorkspace">${t("confirmResetWorkspace")}</button>
+        </div>
+      </div>
+    </dialog>
   </main>
 `;
 
@@ -189,13 +207,17 @@ const aboutDialog = root.querySelector<HTMLDialogElement>(".about-dialog");
 const shareErrorDialog = root.querySelector<HTMLDialogElement>(
 	".share-error-dialog",
 );
+const resetWorkspaceDialog = root.querySelector<HTMLDialogElement>(
+	".reset-workspace-dialog",
+);
 if (
 	!canvas ||
 	!matrixStack ||
 	!animationMode ||
 	!language ||
 	!aboutDialog ||
-	!shareErrorDialog
+	!shareErrorDialog ||
+	!resetWorkspaceDialog
 ) {
 	throw new Error("Missing app controls");
 }
@@ -203,6 +225,7 @@ const stackElement = matrixStack;
 const animationModeElement = animationMode;
 const languageElement = language;
 const shareErrorDialogElement = shareErrorDialog;
+const resetWorkspaceDialogElement = resetWorkspaceDialog;
 
 const scene = new MatrixScene(canvas);
 
@@ -213,6 +236,10 @@ root.addEventListener("click", (event) => {
 		return;
 	}
 	if (target === shareErrorDialog) return;
+	if (target === resetWorkspaceDialog) {
+		resetWorkspaceDialog.close();
+		return;
+	}
 	const dimensionButton =
 		target.closest<HTMLButtonElement>("[data-dimension]");
 	const actionButton = target.closest<HTMLButtonElement>("[data-action]");
@@ -235,6 +262,10 @@ root.addEventListener("click", (event) => {
 	if (action === "play") togglePlayback();
 	if (action === "reset") resetTransform();
 	if (action === "reset-view") resetView();
+	if (action === "open-reset-workspace")
+		resetWorkspaceDialogElement.showModal();
+	if (action === "close-reset-workspace") resetWorkspaceDialogElement.close();
+	if (action === "confirm-reset-workspace") resetWorkspace();
 	if (action === "share") void shareWorkspace();
 	if (action === "open-about") aboutDialog.showModal();
 	if (action === "close-about") aboutDialog.close();
@@ -246,13 +277,13 @@ root.addEventListener("click", (event) => {
 });
 
 document.addEventListener("click", (event) => {
-	if ((event.target as HTMLElement).closest(".preset-split")) return;
-	closePresetMenus();
+	if ((event.target as HTMLElement).closest(".popup-menu")) return;
+	closePopupMenus();
 });
 
 document.addEventListener("keydown", (event) => {
 	const menuPanel = (event.target as HTMLElement).closest<HTMLElement>(
-		".preset-menu-panel",
+		".popup-menu-panel",
 	);
 	if (
 		menuPanel &&
@@ -281,7 +312,7 @@ document.addEventListener("keydown", (event) => {
 	}
 	if (event.key !== "Escape") return;
 	const openMenu =
-		root.querySelector<HTMLDetailsElement>(".preset-menu[open]");
+		root.querySelector<HTMLDetailsElement>(".popup-menu[open]");
 	if (!openMenu) return;
 	openMenu.open = false;
 	openMenu.querySelector<HTMLElement>("summary")?.focus();
@@ -293,7 +324,7 @@ root.addEventListener(
 		const menu = event.target;
 		if (
 			!(menu instanceof HTMLDetailsElement) ||
-			!menu.matches(".preset-menu")
+			!menu.matches(".popup-menu")
 		)
 			return;
 		menu.querySelector("summary")?.setAttribute(
@@ -301,7 +332,7 @@ root.addEventListener(
 			String(menu.open),
 		);
 		if (!menu.open) return;
-		root.querySelectorAll<HTMLDetailsElement>(".preset-menu[open]").forEach(
+		root.querySelectorAll<HTMLDetailsElement>(".popup-menu[open]").forEach(
 			(other) => {
 				if (other !== menu) other.open = false;
 			},
@@ -333,6 +364,13 @@ root.addEventListener("change", (event) => {
 		target.dataset.action === "toggle-basis"
 	) {
 		state.showBasis = target.checked;
+		renderUi(false);
+	}
+	if (
+		target instanceof HTMLInputElement &&
+		target.dataset.action === "toggle-grid"
+	) {
+		state.showGrid = target.checked;
 		renderUi(false);
 	}
 });
@@ -494,11 +532,17 @@ function addRepresentativeEigenvector(): void {
 	resetAnimation();
 }
 
-function closePresetMenus(): void {
-	root.querySelectorAll<HTMLDetailsElement>(".preset-menu[open]").forEach(
+function closePopupMenus(): void {
+	root.querySelectorAll<HTMLDetailsElement>(".popup-menu[open]").forEach(
 		(menu) => {
 			menu.open = false;
 		},
+	);
+}
+
+function resetWorkspace(): void {
+	window.location.replace(
+		`${window.location.pathname}${window.location.search}`,
 	);
 }
 
@@ -773,6 +817,10 @@ function renderUi(renderStack = true): void {
 		"[data-action='toggle-basis']",
 	);
 	if (basisCheckbox) basisCheckbox.checked = state.showBasis;
+	const gridCheckbox = root.querySelector<HTMLInputElement>(
+		"[data-action='toggle-grid']",
+	);
+	if (gridCheckbox) gridCheckbox.checked = state.showGrid;
 	animationModeElement.value = state.animation.mode;
 
 	if (renderStack) stackElement.innerHTML = renderEquation();
@@ -854,9 +902,9 @@ function renderMatrixAddControl(positionClass: string): string {
       <button class="equation-add-button preset-main" type="button" data-action="add-matrix" aria-label="${t("addMatrix")}" title="${t("addMatrix")}" ${addDisabled}>
         <math aria-hidden="true"><mo>+</mo><mi>M</mi></math>
       </button>
-      <details class="preset-menu">
+      <details class="preset-menu popup-menu">
         <summary class="preset-toggle" aria-label="${t("matrixPresets")}" title="${t("matrixPresets")}" aria-haspopup="menu" aria-expanded="false"></summary>
-        <div class="preset-menu-panel" role="menu" aria-label="${t("matrixPresets")}">
+        <div class="preset-menu-panel popup-menu-panel" role="menu" aria-label="${t("matrixPresets")}">
           ${getMatrixPresets(getWorkspace(state).dimension)
 				.map(
 					(preset) => `
@@ -889,9 +937,9 @@ function renderVectorAddControl(positionClass: string): string {
       <button class="equation-add-button preset-main" type="button" data-action="add-vector" aria-label="${t("addVector")}" title="${t("addVector")}" ${addDisabled}>
         <math aria-hidden="true"><mo>+</mo><mi>v</mi></math>
       </button>
-      <details class="preset-menu">
+      <details class="preset-menu popup-menu">
         <summary class="preset-toggle" aria-label="${t("vectorPresets")}" title="${t("vectorPresets")}" aria-haspopup="menu" aria-expanded="false"></summary>
-        <div class="preset-menu-panel" role="menu" aria-label="${t("vectorPresets")}">
+        <div class="preset-menu-panel popup-menu-panel" role="menu" aria-label="${t("vectorPresets")}">
           <button type="button" role="menuitem" data-action="add-eigenvector" ${vectorAvailable ? "" : "disabled"}>${t("oneEigenvector")}</button>
           <span class="preset-unavailable" data-eigenvector-unavailable ${vectorAvailable ? "hidden" : ""}>${t("eigenvectorUnavailable")}</span>
           <button type="button" role="menuitem" data-action="add-eigenbasis" ${basisAvailable ? "" : "disabled"}>${t("allEigenbasis")}</button>
