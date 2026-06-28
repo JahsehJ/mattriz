@@ -17,13 +17,18 @@ const MAX_PAN_RADIUS = GRID_EXTENT * 0.35;
 const GRID_COLOR = 0x45616a;
 const GRID_CENTER_COLOR = 0x8fb4bd;
 const BASIS_COLORS = [0xff4d43, 0x43d675, 0x5298ff];
+const BASIS_VECTORS: Vec3[] = [
+	[1, 0, 0],
+	[0, 1, 0],
+	[0, 0, 1],
+];
 const ARROW_SHAFT_RADIUS = 0.03;
 const BASIS_ARROW_Z = 0.035;
 const USER_ARROW_Z = 0.055;
-const AXIS_LABEL_DISTANCE = 1.24;
-const AXIS_LABEL_SIZE = 0.34;
-const VECTOR_LABEL_OFFSET = 0.2;
-const VECTOR_LABEL_SIZE = 0.34;
+const LABEL_Z_OFFSET = 0.02;
+const LABEL_OFFSET = 0.2;
+const LABEL_SIZE = 0.34;
+const MIN_DIRECTION_LENGTH = 0.001;
 const DEFAULT_3D_CAMERA_POSITION: Vec3 = [7, 7, 7];
 
 interface ArrowVisual {
@@ -227,27 +232,17 @@ export class MatrixScene {
 	}
 
 	private updateAxisLabels(dimension: Dimension, matrix: MatrixValues): void {
-		const axes: Vec3[] = [
-			[1, 0, 0],
-			[0, 1, 0],
-			[0, 0, 1],
-		];
-
 		this.axisLabels.children.forEach((label, index) => {
-			label.visible = index < dimension;
-			if (!label.visible) return;
-
-			const endpoint = toThree(
-				transformPoint(dimension, matrix, axes[index]),
-			);
-			if (endpoint.lengthSq() < 0.000001) {
+			if (index >= dimension) {
 				label.visible = false;
 				return;
 			}
-
-			endpoint.multiplyScalar(AXIS_LABEL_DISTANCE);
-			if (dimension === 2) endpoint.z = USER_ARROW_Z + 0.02;
-			label.position.copy(endpoint);
+			this.updateDirectionLabel(
+				label as THREE.Sprite,
+				dimension,
+				transformPoint(dimension, matrix, BASIS_VECTORS[index]),
+				BASIS_ARROW_Z,
+			);
 		});
 	}
 
@@ -256,11 +251,6 @@ export class MatrixScene {
 		matrix: MatrixValues,
 		visible: boolean,
 	): void {
-		const basis: Vec3[] = [
-			[1, 0, 0],
-			[0, 1, 0],
-			[0, 0, 1],
-		];
 		this.basisArrows.forEach((arrow, index) => {
 			if (!visible || index >= dimension) {
 				arrow.group.visible = false;
@@ -268,7 +258,7 @@ export class MatrixScene {
 			}
 			this.updateArrow(
 				arrow,
-				transformPoint(dimension, matrix, basis[index]),
+				transformPoint(dimension, matrix, BASIS_VECTORS[index]),
 				dimension,
 				BASIS_ARROW_Z,
 			);
@@ -305,11 +295,7 @@ export class MatrixScene {
 				const color = new THREE.Color(vector.color).getHex();
 				visual = {
 					arrow: this.createArrowVisual(color, 1),
-					label: createTextLabel(
-						vector.label,
-						color,
-						VECTOR_LABEL_SIZE,
-					),
+					label: createTextLabel(vector.label, color, LABEL_SIZE),
 					labelText: vector.label,
 					color: vector.color,
 				};
@@ -335,22 +321,28 @@ export class MatrixScene {
 				dimension,
 				USER_ARROW_Z,
 			);
-			this.updateVectorLabel(visual.label, dimension, transformed);
+			this.updateDirectionLabel(
+				visual.label,
+				dimension,
+				transformed,
+				USER_ARROW_Z,
+			);
 		});
 	}
 
-	private updateVectorLabel(
+	private updateDirectionLabel(
 		label: THREE.Sprite,
 		dimension: Dimension,
 		target: Vec3,
+		zLift: number,
 	): void {
 		const endpoint = toThree(target);
 		const length = endpoint.length();
-		label.visible = length >= 0.001;
+		label.visible = length >= MIN_DIRECTION_LENGTH;
 		if (!label.visible) return;
 
-		endpoint.setLength(length + VECTOR_LABEL_OFFSET);
-		if (dimension === 2) endpoint.z = USER_ARROW_Z + 0.02;
+		endpoint.setLength(length + LABEL_OFFSET);
+		if (dimension === 2) endpoint.z = zLift + LABEL_Z_OFFSET;
 		label.position.copy(endpoint);
 	}
 
@@ -382,7 +374,7 @@ export class MatrixScene {
 	): void {
 		const end = toThree(target);
 		const length = end.length();
-		arrow.group.visible = length >= 0.001;
+		arrow.group.visible = length >= MIN_DIRECTION_LENGTH;
 		if (!arrow.group.visible) return;
 
 		const direction = end.clone().normalize();
@@ -450,7 +442,7 @@ function createGridPlane(plane: "xy" | "xz" | "yz"): THREE.Group {
 function createAxisLabels(): THREE.Group {
 	const group = new THREE.Group();
 	["x", "y", "z"].forEach((axis, index) => {
-		group.add(createTextLabel(axis, BASIS_COLORS[index], AXIS_LABEL_SIZE));
+		group.add(createTextLabel(axis, BASIS_COLORS[index], LABEL_SIZE));
 	});
 	return group;
 }
