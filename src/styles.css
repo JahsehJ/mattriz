@@ -218,6 +218,12 @@ a:focus-visible {
 	backdrop-filter: blur(5px);
 }
 
+.about-dialog-content {
+	min-height: 100%;
+	border-radius: inherit;
+	background: #131c1f;
+}
+
 .share-dialog,
 .share-error-dialog,
 .reset-workspace-dialog {

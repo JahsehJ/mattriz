@@ -121,65 +121,67 @@ root.innerHTML = `
       <section class="equation-tray" data-matrix-stack aria-label="${t("transformationEquation")}" data-i18n-aria="transformationEquation"></section>
     </footer>
     <dialog class="about-dialog" aria-labelledby="about-title">
-      <div class="about-dialog-header">
-        <div>
-          <p class="about-eyebrow" data-i18n="quickReference">${t("quickReference")}</p>
-          <h1 id="about-title" data-i18n="aboutMattriz">${t("aboutMattriz")}</h1>
+      <div class="about-dialog-content">
+        <div class="about-dialog-header">
+          <div>
+            <p class="about-eyebrow" data-i18n="quickReference">${t("quickReference")}</p>
+            <h1 id="about-title" data-i18n="aboutMattriz">${t("aboutMattriz")}</h1>
+          </div>
+          <button class="about-close" type="button" data-action="close-about" aria-label="${t("close")}" title="${t("close")}" data-i18n-aria="close" data-i18n-title="close">${renderCloseIcon()}</button>
         </div>
-        <button class="about-close" type="button" data-action="close-about" aria-label="${t("close")}" title="${t("close")}" data-i18n-aria="close" data-i18n-title="close">${renderCloseIcon()}</button>
-      </div>
-      <p class="about-intro" data-i18n="intro">${t("intro")}</p>
-      <div class="control-guide" role="table" aria-label="${t("mattrizControls")}" data-i18n-aria="mattrizControls">
-        <div class="control-guide-header" role="row">
-          <span role="columnheader" data-i18n="control">${t("control")}</span>
-          <span role="columnheader" data-i18n="whatItDoes">${t("whatItDoes")}</span>
-        </div>
-        <div role="row"><span role="cell"><kbd>2D</kbd> <kbd>3D</kbd></span><span role="cell" data-i18n="switchDimensions">${t("switchDimensions")}</span></div>
-        <div role="row"><span role="cell"><kbd data-i18n="resetView">${t("resetView")}</kbd></span><span role="cell" data-i18n="restoreCamera">${t("restoreCamera")}</span></div>
-        <div role="row"><span role="cell"><kbd data-i18n="apply">${t("apply")}</kbd></span><span role="cell" data-i18n="applyDescription">${t("applyDescription")}</span></div>
-        <div role="row"><span role="cell"><kbd data-i18n="pause">${t("pause")}</kbd> <kbd data-i18n="resume">${t("resume")}</kbd></span><span role="cell" data-i18n="pauseDescription">${t("pauseDescription")}</span></div>
-        <div role="row"><span role="cell"><kbd data-i18n="reset">${t("reset")}</kbd></span><span role="cell" data-i18n="resetDescription">${t("resetDescription")}</span></div>
-        <div role="row"><span role="cell"><kbd data-i18n="method">${t("method")}</kbd></span><span role="cell" data-i18n="methodDescription">${t("methodDescription")}</span></div>
-        <div role="row"><span role="cell"><kbd data-i18n="basis">${t("basis")}</kbd></span><span role="cell" data-i18n="basisDescription">${t("basisDescription")}</span></div>
-        <div role="row"><span role="cell"><kbd data-i18n="grid">${t("grid")}</kbd></span><span role="cell" data-i18n="gridDescription">${t("gridDescription")}</span></div>
-        <div role="row">
-          <span class="guide-add-controls" role="cell">
-            <span class="preset-split guide-add-split" aria-label="${t("addMatrix")}" data-i18n-aria="addMatrix">
-              <span class="equation-add-button preset-main guide-add-button"><math aria-hidden="true"><mo>+</mo><mi>M</mi></math></span>
-              <span class="preset-menu" aria-hidden="true"><span class="preset-toggle"></span></span>
+        <p class="about-intro" data-i18n="intro">${t("intro")}</p>
+        <div class="control-guide" role="table" aria-label="${t("mattrizControls")}" data-i18n-aria="mattrizControls">
+          <div class="control-guide-header" role="row">
+            <span role="columnheader" data-i18n="control">${t("control")}</span>
+            <span role="columnheader" data-i18n="whatItDoes">${t("whatItDoes")}</span>
+          </div>
+          <div role="row"><span role="cell"><kbd>2D</kbd> <kbd>3D</kbd></span><span role="cell" data-i18n="switchDimensions">${t("switchDimensions")}</span></div>
+          <div role="row"><span role="cell"><kbd data-i18n="resetView">${t("resetView")}</kbd></span><span role="cell" data-i18n="restoreCamera">${t("restoreCamera")}</span></div>
+          <div role="row"><span role="cell"><kbd data-i18n="apply">${t("apply")}</kbd></span><span role="cell" data-i18n="applyDescription">${t("applyDescription")}</span></div>
+          <div role="row"><span role="cell"><kbd data-i18n="pause">${t("pause")}</kbd> <kbd data-i18n="resume">${t("resume")}</kbd></span><span role="cell" data-i18n="pauseDescription">${t("pauseDescription")}</span></div>
+          <div role="row"><span role="cell"><kbd data-i18n="reset">${t("reset")}</kbd></span><span role="cell" data-i18n="resetDescription">${t("resetDescription")}</span></div>
+          <div role="row"><span role="cell"><kbd data-i18n="method">${t("method")}</kbd></span><span role="cell" data-i18n="methodDescription">${t("methodDescription")}</span></div>
+          <div role="row"><span role="cell"><kbd data-i18n="basis">${t("basis")}</kbd></span><span role="cell" data-i18n="basisDescription">${t("basisDescription")}</span></div>
+          <div role="row"><span role="cell"><kbd data-i18n="grid">${t("grid")}</kbd></span><span role="cell" data-i18n="gridDescription">${t("gridDescription")}</span></div>
+          <div role="row">
+            <span class="guide-add-controls" role="cell">
+              <span class="preset-split guide-add-split" aria-label="${t("addMatrix")}" data-i18n-aria="addMatrix">
+                <span class="equation-add-button preset-main guide-add-button"><math aria-hidden="true"><mo>+</mo><mi>M</mi></math></span>
+                <span class="preset-menu" aria-hidden="true"><span class="preset-toggle"></span></span>
+              </span>
+              <span class="preset-split guide-add-split" aria-label="${t("addVector")}" data-i18n-aria="addVector">
+                <span class="equation-add-button preset-main guide-add-button"><math aria-hidden="true"><mo>+</mo><mi>v</mi></math></span>
+                <span class="preset-menu" aria-hidden="true"><span class="preset-toggle"></span></span>
+              </span>
             </span>
-            <span class="preset-split guide-add-split" aria-label="${t("addVector")}" data-i18n-aria="addVector">
-              <span class="equation-add-button preset-main guide-add-button"><math aria-hidden="true"><mo>+</mo><mi>v</mi></math></span>
-              <span class="preset-menu" aria-hidden="true"><span class="preset-toggle"></span></span>
-            </span>
-          </span>
-          <span role="cell" data-i18n="addDescription">${t("addDescription")}</span>
+            <span role="cell" data-i18n="addDescription">${t("addDescription")}</span>
+          </div>
         </div>
+        <section class="interaction-guide expression-guide" aria-labelledby="expression-guide-title">
+          <h2 id="expression-guide-title" data-i18n="expressions">${t("expressions")}</h2>
+          <p data-i18n="expressionsDescription">${t("expressionsDescription")}</p>
+          <dl>
+            <div><dt data-i18n="expressionOperators">${t("expressionOperators")}</dt><dd><span class="expression-tokens"><code>+</code><code>-</code><code>*</code><code>/</code><code>^</code><code>( )</code></span><span data-i18n="expressionOperatorsDescription">${t("expressionOperatorsDescription")}</span></dd></div>
+            <div><dt data-i18n="expressionFunctions">${t("expressionFunctions")}</dt><dd><span class="expression-tokens"><code>pi</code><code>sqrt(x)</code><code>sin(x)</code><code>cos(x)</code><code>tan(x)</code></span><span data-i18n="expressionFunctionsDescription">${t("expressionFunctionsDescription")}</span></dd></div>
+            <div><dt data-i18n="expressionExamples">${t("expressionExamples")}</dt><dd><span class="expression-tokens"><code>1/2</code><code>sqrt(2)/2</code><code>cos(pi/4)</code><code>2^(-3)</code></span></dd></div>
+          </dl>
+        </section>
+        <section class="interaction-guide" aria-labelledby="interaction-guide-title">
+          <h2 id="interaction-guide-title" data-i18n="gestures">${t("gestures")}</h2>
+          <dl>
+            <div><dt data-i18n="reorder">${t("reorder")}</dt><dd data-i18n="reorderDescription">${t("reorderDescription")}</dd></div>
+            <div><dt data-i18n="navigate">${t("navigate")}</dt><dd data-i18n="navigateDescription">${t("navigateDescription")}</dd></div>
+          </dl>
+        </section>
+        <footer class="about-links" aria-label="${t("projectLinks")}" data-i18n-aria="projectLinks">
+          <div class="about-link-list">
+            <a href="https://github.com/JahsehJ/mattriz" target="_blank" rel="noreferrer">GitHub</a>
+            <a href="https://codeberg.org/JahsehJ/mattriz" target="_blank" rel="noreferrer">Codeberg</a>
+            <a href="https://jahsehjaeger.com" target="_blank" rel="noreferrer">jahsehjaeger.com</a>
+          </div>
+          <small class="about-version">v${appVersion}</small>
+        </footer>
       </div>
-      <section class="interaction-guide expression-guide" aria-labelledby="expression-guide-title">
-        <h2 id="expression-guide-title" data-i18n="expressions">${t("expressions")}</h2>
-        <p data-i18n="expressionsDescription">${t("expressionsDescription")}</p>
-        <dl>
-          <div><dt data-i18n="expressionOperators">${t("expressionOperators")}</dt><dd><span class="expression-tokens"><code>+</code><code>-</code><code>*</code><code>/</code><code>^</code><code>( )</code></span><span data-i18n="expressionOperatorsDescription">${t("expressionOperatorsDescription")}</span></dd></div>
-          <div><dt data-i18n="expressionFunctions">${t("expressionFunctions")}</dt><dd><span class="expression-tokens"><code>pi</code><code>sqrt(x)</code><code>sin(x)</code><code>cos(x)</code><code>tan(x)</code></span><span data-i18n="expressionFunctionsDescription">${t("expressionFunctionsDescription")}</span></dd></div>
-          <div><dt data-i18n="expressionExamples">${t("expressionExamples")}</dt><dd><span class="expression-tokens"><code>1/2</code><code>sqrt(2)/2</code><code>cos(pi/4)</code><code>2^(-3)</code></span></dd></div>
-        </dl>
-      </section>
-      <section class="interaction-guide" aria-labelledby="interaction-guide-title">
-        <h2 id="interaction-guide-title" data-i18n="gestures">${t("gestures")}</h2>
-        <dl>
-          <div><dt data-i18n="reorder">${t("reorder")}</dt><dd data-i18n="reorderDescription">${t("reorderDescription")}</dd></div>
-          <div><dt data-i18n="navigate">${t("navigate")}</dt><dd data-i18n="navigateDescription">${t("navigateDescription")}</dd></div>
-        </dl>
-      </section>
-      <footer class="about-links" aria-label="${t("projectLinks")}" data-i18n-aria="projectLinks">
-        <div class="about-link-list">
-          <a href="https://github.com/JahsehJ/mattriz" target="_blank" rel="noreferrer">GitHub</a>
-          <a href="https://codeberg.org/JahsehJ/mattriz" target="_blank" rel="noreferrer">Codeberg</a>
-          <a href="https://jahsehjaeger.com" target="_blank" rel="noreferrer">jahsehjaeger.com</a>
-        </div>
-        <small class="about-version">v${appVersion}</small>
-      </footer>
     </dialog>
     <dialog class="share-dialog" aria-labelledby="share-dialog-title">
       <div class="share-dialog-content">
