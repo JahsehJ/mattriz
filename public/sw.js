@@ -1,7 +1,11 @@
-const CACHE_NAME = "mattriz-v1";
+const CACHE_NAME = "mattriz-v2";
 const APP_SHELL_URL = new URL("./", self.registration.scope);
+const LOCALE_APP_SHELL_PATHS = ["zh-hant/"];
+const LOCALE_APP_SHELL_URLS = LOCALE_APP_SHELL_PATHS.map(
+  (path) => new URL(path, self.registration.scope)
+);
+const APP_SHELL_URLS = [APP_SHELL_URL, ...LOCALE_APP_SHELL_URLS];
 const STATIC_ASSETS = [
-  "manifest.webmanifest",
   "favicon.svg",
   "icon-192.png",
   "icon-512.png",
@@ -12,13 +16,31 @@ self.addEventListener("install", (event) => {
   event.waitUntil(
     (async () => {
       const cache = await caches.open(CACHE_NAME);
-      const response = await fetch(APP_SHELL_URL, { cache: "reload" });
-      if (!response.ok) throw new Error(`Unable to cache app shell: ${response.status}`);
+      const responses = await Promise.all(
+        APP_SHELL_URLS.map((url) => fetch(url, { cache: "reload" }))
+      );
+      const failedResponse = responses.find((response) => !response.ok);
+      if (failedResponse) {
+        throw new Error(`Unable to cache app shell: ${failedResponse.status}`);
+      }
 
-      await cache.put(APP_SHELL_URL, response.clone());
-      const html = await response.text();
-      const assetUrls = Array.from(html.matchAll(/(?:href|src)="([^"]+)"/g), ([, path]) => new URL(path, APP_SHELL_URL));
-      const sameOriginAssets = assetUrls.filter((url) => url.origin === APP_SHELL_URL.origin);
+      await Promise.all(
+        responses.map((response, index) =>
+          cache.put(APP_SHELL_URLS[index], response.clone())
+        )
+      );
+      const htmlDocuments = await Promise.all(
+        responses.map((response) => response.text())
+      );
+      const assetUrls = htmlDocuments.flatMap((html, index) =>
+        Array.from(
+          html.matchAll(/(?:href|src)="([^"]+)"/g),
+          ([, path]) => new URL(path, APP_SHELL_URLS[index])
+        )
+      );
+      const sameOriginAssets = assetUrls.filter(
+        (url) => url.origin === APP_SHELL_URL.origin
+      );
       const urls = [
         ...new Set([...STATIC_ASSETS.map((path) => new URL(path, APP_SHELL_URL)), ...sameOriginAssets].map(String))
       ];
@@ -48,15 +70,19 @@ self.addEventListener("fetch", (event) => {
   if (request.mode === "navigate") {
     event.respondWith(
       (async () => {
+        const appShellUrl =
+          LOCALE_APP_SHELL_URLS.find((localeUrl) =>
+            url.pathname.startsWith(localeUrl.pathname)
+          ) ?? APP_SHELL_URL;
         try {
           const response = await fetch(request);
           if (response.ok) {
             const cache = await caches.open(CACHE_NAME);
-            await cache.put(APP_SHELL_URL, response.clone());
+            await cache.put(appShellUrl, response.clone());
           }
           return response;
         } catch {
-          return caches.match(APP_SHELL_URL);
+          return caches.match(appShellUrl);
         }
       })()
     );

@@ -19,8 +19,14 @@ transformations.
 
 ```sh
 npm ci
+cp .env.example .env.development
 npm run dev
 ```
+
+Vite automatically loads `.env.development` in development mode. Environment
+files are ignored by Git; `.env.example` documents the required non-secret
+values. Variables prefixed with `VITE_` are exposed to client code and must
+never contain secrets.
 
 Run the linter, formatting check, test suite, and production build:
 
@@ -28,30 +34,12 @@ Run the linter, formatting check, test suite, and production build:
 npm run check
 ```
 
-## Architecture
+Set `VITE_SITE_URL` to the absolute public application URL when building for
+deployment. Include any deployment subpath and a trailing slash.
 
-```text
-src/
-├── main.ts         UI, events, and application loop
-├── scene.ts        Three.js scene and rendering
-├── state.ts        Workspace and animation state
-├── math.ts         Matrix and vector operations
-├── expression.ts   Expression parsing and validation
-├── presets.ts      Matrix and vector presets
-├── share.ts        URL-fragment session serialization
-├── i18n.ts         Interface translations
-└── styles.css      Layout and visual styling
+```sh
+VITE_SITE_URL=https://example.com/mattriz/ npm run build
 ```
-
-The interface uses direct DOM rendering without a frontend framework.
-`main.ts` coordinates state and rendering while numerical and Three.js concerns
-remain isolated in `math.ts` and `scene.ts`.
-
-Scene geometry uses mathematical coordinates directly. The three-dimensional
-camera is Z-up; the two-dimensional camera views the XY plane with Y-up.
-
-Rendering resource ownership and performance guardrails are documented in
-[`docs/rendering-performance.md`](docs/rendering-performance.md).
 
 ## LLM Disclosure
 

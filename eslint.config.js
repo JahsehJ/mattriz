@@ -28,5 +28,11 @@ export default tseslint.config(
 			globals: globals.serviceworker,
 		},
 	},
+	{
+		files: ["scripts/*.mjs"],
+		languageOptions: {
+			globals: globals.node,
+		},
+	},
 	prettier,
 );

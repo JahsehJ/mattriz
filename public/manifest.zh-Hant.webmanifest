@@ -1,0 +1,24 @@
+{
+  "id": "./",
+  "name": "Mattriz",
+  "short_name": "Mattriz",
+  "description": "透過可編輯的矩陣、向量與動態座標格線，互動探索二維及三維線性變換。",
+  "lang": "zh-Hant",
+  "start_url": "./zh-hant/",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#101416",
+  "theme_color": "#101416",
+  "icons": [
+    {
+      "src": "./icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

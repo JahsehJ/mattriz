@@ -23,7 +23,12 @@ import {
 	getRepresentativeRealEigenvector,
 	identityMatrix,
 } from "./math";
-import { Locale, MessageKey, translate } from "./i18n";
+import { localeMetadata, Locale, MessageKey, translate } from "./i18n";
+import {
+	getAlternateLocaleUrl,
+	getAppRootUrl,
+	getLocaleFromLanguageTag,
+} from "./locale-routing";
 import { evaluateBoundedExpression } from "./expression";
 import { MatrixPreset, getMatrixPresets } from "./presets";
 import {
@@ -34,7 +39,7 @@ import {
 
 let state: AppState = createInitialState();
 const appVersion = packageJson.version;
-let locale: Locale = "en";
+const locale: Locale = getLocaleFromLanguageTag(document.documentElement.lang);
 const t = (key: MessageKey, values?: Record<string, string | number>): string =>
 	translate(locale, key, values);
 type DragKind = "matrix" | "vector";
@@ -75,8 +80,7 @@ root.innerHTML = `
       </div>
       <div class="view-tools" role="group" aria-label="${t("applicationControls")}" data-i18n-aria="applicationControls">
         <select name="language" data-language aria-label="${t("language")}" data-i18n-aria="language">
-          <option value="en">English</option>
-          <option value="zh-Hant">繁體中文</option>
+          ${localeMetadata.map(({ code, label }) => `<option value="${code}">${label}</option>`).join("")}
         </select>
         <button type="button" data-action="reset-view" data-i18n="resetView">${t("resetView")}</button>
         <button type="button" data-action="open-reset-workspace" aria-haspopup="dialog" data-i18n="resetWorkspace">${t("resetWorkspace")}</button>
@@ -236,6 +240,7 @@ if (
 const stackElement = matrixStack;
 const animationModeElement = animationMode;
 const languageElement = language;
+languageElement.value = locale;
 const shareDialogElement = shareDialog;
 const shareLinkElement = shareLink;
 const shareErrorDialogElement = shareErrorDialog;
@@ -373,10 +378,7 @@ root.addEventListener("change", (event) => {
 		renderUi();
 	}
 	if (target === languageElement) {
-		locale = languageElement.value === "zh-Hant" ? "zh-Hant" : "en";
-		document.documentElement.lang = locale;
-		localizeStaticUi();
-		renderUi();
+		void navigateToAlternateLocale();
 	}
 	if (
 		target instanceof HTMLInputElement &&
@@ -759,18 +761,59 @@ function resetView(): void {
 
 let shareStatusTimer = 0;
 
-async function shareWorkspace(): Promise<void> {
+async function encodeCurrentSession(): Promise<string> {
 	const now = performance.now();
 	const elapsedMs =
 		state.animation.status === "idle"
 			? 0
 			: getAnimationElapsed(state.animation, now);
+	return encodeShareSession({
+		state,
+		elapsedMs,
+		cameras: scene.getCameraSnapshots(),
+	});
+}
+
+async function navigateToAlternateLocale(): Promise<void> {
+	const selectedLocale = languageElement.value;
+	const selectedLocaleMetadata = localeMetadata.find(
+		({ code }) => code === selectedLocale,
+	);
+	if (!selectedLocaleMetadata) {
+		languageElement.value = locale;
+		return;
+	}
+	const appRootUrl = getAppRootUrl(
+		window.location.href,
+		document.documentElement.dataset.appRootUrl ?? import.meta.env.BASE_URL,
+	);
+	const alternateLocaleUrl = new URL(selectedLocaleMetadata.path, appRootUrl)
+		.href;
+
 	try {
-		const payload = await encodeShareSession({
-			state,
-			elapsedMs,
-			cameras: scene.getCameraSnapshots(),
-		});
+		const payload = await encodeCurrentSession();
+		const url = getAlternateLocaleUrl(
+			window.location.href,
+			alternateLocaleUrl,
+			payload,
+		);
+		if (url.length > MAX_SHARE_FRAGMENT_LENGTH)
+			throw new Error("Share payload is too large");
+		window.location.assign(url);
+	} catch (error) {
+		languageElement.value = locale;
+		setShareStatus(
+			error instanceof Error &&
+				error.message === "Share payload is too large"
+				? "shareTooLarge"
+				: "copyFailed",
+		);
+	}
+}
+
+async function shareWorkspace(): Promise<void> {
+	try {
+		const payload = await encodeCurrentSession();
 		const url = new URL(window.location.href);
 		url.hash = `s=${payload}`;
 		if (url.href.length > MAX_SHARE_FRAGMENT_LENGTH)
@@ -803,25 +846,6 @@ function setShareStatus(key: MessageKey): void {
 		if (button) button.textContent = t("share");
 		if (status) status.textContent = "";
 	}, 2_000);
-}
-
-function localizeStaticUi(): void {
-	root.querySelectorAll<HTMLElement>("[data-i18n]").forEach((element) => {
-		element.textContent = t(element.dataset.i18n as MessageKey);
-	});
-	root.querySelectorAll<HTMLElement>("[data-i18n-aria]").forEach(
-		(element) => {
-			element.setAttribute(
-				"aria-label",
-				t(element.dataset.i18nAria as MessageKey),
-			);
-		},
-	);
-	root.querySelectorAll<HTMLElement>("[data-i18n-title]").forEach(
-		(element) => {
-			element.title = t(element.dataset.i18nTitle as MessageKey);
-		},
-	);
 }
 
 function renderUi(renderStack = true): void {
@@ -1642,9 +1666,13 @@ void initialize();
 
 if (import.meta.env.PROD && "serviceWorker" in navigator) {
 	window.addEventListener("load", () => {
-		const baseUrl = new URL(import.meta.env.BASE_URL, window.location.href);
-		void navigator.serviceWorker.register(new URL("sw.js", baseUrl), {
-			scope: baseUrl.pathname,
+		const appRootUrl = getAppRootUrl(
+			window.location.href,
+			document.documentElement.dataset.appRootUrl ??
+				import.meta.env.BASE_URL,
+		);
+		void navigator.serviceWorker.register(new URL("sw.js", appRootUrl), {
+			scope: appRootUrl.pathname,
 		});
 	});
 }

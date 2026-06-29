@@ -1,5 +1,13 @@
-export const locales = ["en", "zh-Hant"] as const;
-export type Locale = (typeof locales)[number];
+export const localeMetadata = [
+	{ code: "en", label: "English", path: "./", languageTags: ["en"] },
+	{
+		code: "zh-Hant",
+		label: "繁體中文",
+		path: "zh-hant/",
+		languageTags: ["zh-Hant", "zh-TW", "zh-HK"],
+	},
+] as const;
+export type Locale = (typeof localeMetadata)[number]["code"];
 
 const en = {
 	language: "Language",
