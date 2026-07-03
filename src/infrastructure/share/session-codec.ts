@@ -1,18 +1,18 @@
-import type { Dimension, MatrixFor, VectorFor } from "../domain/math";
-import { MAX_EXPRESSION_LENGTH, MAX_WORKSPACE_NODES } from "../domain/policy";
-import type { AnimationMode } from "../domain/animation";
+import type { Dimension, MatrixFor, VectorFor } from "../../math/matrix";
+import { MAX_EXPRESSION_LENGTH, MAX_WORKSPACE_NODES } from "../../app/policy";
+import type { AnimationMode } from "../../app/animation";
 import {
 	MAX_ABSOLUTE_INPUT_VALUE,
 	MAX_MATRIX_DURATION_MS,
 	MAX_SESSION_ELAPSED_MS,
 	MIN_MATRIX_DURATION_MS,
-} from "../domain/policy";
-import { MAX_RENDER_TRANSFORM_VALUE } from "../rendering/capability";
+} from "../../app/policy";
+import { MAX_RENDER_TRANSFORM_VALUE } from "../../app/renderability-policy";
 import type {
 	CameraSnapshot,
 	SessionSnapshot,
 	WorkspaceSnapshot,
-} from "../app/session-snapshot";
+} from "../../app/session-snapshot";
 import {
 	decodeSharePayload,
 	encodeSharePayload,
@@ -21,8 +21,8 @@ export { MAX_SHARE_FRAGMENT_LENGTH } from "./share-payload-transport";
 export type {
 	CameraSnapshot,
 	CameraSnapshots,
-	SessionSnapshot,
-} from "../app/session-snapshot";
+} from "../../app/camera-snapshot";
+export type { SessionSnapshot } from "../../app/session-snapshot";
 
 const MAX_CAMERA_VALUE = 1_000;
 const MATRIX_LABEL = /^[A-Z]{1,2}$/;

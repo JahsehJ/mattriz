@@ -3,16 +3,20 @@ import packageJson from "../package.json";
 import { MatrixScene } from "./ui/scene";
 import { AppState, createInitialState } from "./app/state";
 import { getRenderState } from "./app/render-state";
-import { Dimension } from "./domain/math";
+import type { Dimension } from "./math/matrix";
 import { Locale, MessageKey, translate } from "./i18n";
 import { getLocaleFromLanguageTag } from "./app/locale-routing";
-import { registerAppServiceWorker } from "./app/service-worker-registration";
-import { decodeShareSession } from "./infrastructure/session-codec";
+import { registerAppServiceWorkerSafely } from "./app/service-worker-registration";
+import {
+	decodeShareSession,
+	encodeShareSession,
+} from "./infrastructure/share/session-codec";
 import { restoreSessionSnapshot } from "./app/session-snapshot";
-import { ApplicationController } from "./app/application-controller";
-import { ShareController } from "./app/share-controller";
+import { ApplicationController } from "./ui/controllers/application-controller";
+import { ShareController } from "./ui/controllers/share-controller";
 import { renderAppShell } from "./ui/app-shell";
 import { DragController } from "./ui/drag-controller";
+import { ApplicationLifecycle } from "./app/application-lifecycle";
 
 const createId = (): string => crypto.randomUUID();
 let state: AppState = createInitialState(createId);
@@ -26,6 +30,7 @@ if (!app) {
 	throw new Error("Missing #app root");
 }
 const root = app;
+const lifecycle = new ApplicationLifecycle();
 
 root.innerHTML = renderAppShell(t, appVersion);
 root.inert = true;
@@ -78,6 +83,7 @@ const shareController = new ShareController({
 	t,
 	getState: () => state,
 	getCameras: () => scene.getCameraSnapshots(),
+	encodeSession: encodeShareSession,
 });
 const dragController = new DragController(matrixStack, {
 	moveItem: (kind, id, targetId, side) =>
@@ -85,8 +91,11 @@ const dragController = new DragController(matrixStack, {
 	createVectorPreview: (id) =>
 		appController.equations.createVectorDragPreview(id),
 });
+lifecycle.own(scene);
+lifecycle.own(dragController);
+lifecycle.own(shareController);
 
-root.addEventListener("click", (event) => {
+lifecycle.listen(root, "click", (event) => {
 	const target = event.target as HTMLElement;
 	if (target === aboutDialog) {
 		aboutDialog.close();
@@ -139,12 +148,12 @@ root.addEventListener("click", (event) => {
 		appController.editor.deleteItem("vector", actionButton.dataset.id);
 });
 
-document.addEventListener("click", (event) => {
+lifecycle.listen(document, "click", (event) => {
 	if ((event.target as HTMLElement).closest(".popup-menu")) return;
 	closePopupMenus();
 });
 
-document.addEventListener("keydown", (event) => {
+lifecycle.listen(document, "keydown", (event: KeyboardEvent) => {
 	if (
 		event.altKey &&
 		!event.ctrlKey &&
@@ -201,7 +210,8 @@ document.addEventListener("keydown", (event) => {
 	openMenu.querySelector<HTMLElement>("summary")?.focus();
 });
 
-root.addEventListener(
+lifecycle.listen(
+	root,
 	"toggle",
 	(event) => {
 		const menu = event.target;
@@ -226,12 +236,12 @@ root.addEventListener(
 	true,
 );
 
-root.addEventListener("input", (event) => {
+lifecycle.listen(root, "input", (event) => {
 	if (event.target instanceof HTMLInputElement)
 		appController.inputs.handleInput(event.target);
 });
 
-root.addEventListener("change", (event) => {
+lifecycle.listen(root, "change", (event) => {
 	const target = event.target as HTMLElement;
 	if (target === animationMode) {
 		state.animation.mode =
@@ -320,12 +330,12 @@ async function initialize(): Promise<void> {
 
 void initialize();
 
-canvas.addEventListener("pointerdown", scheduleRender);
-canvas.addEventListener("wheel", scheduleRender, { passive: true });
-canvas.addEventListener("touchstart", scheduleRender, { passive: true });
-window.addEventListener("resize", scheduleRender);
-window.addEventListener("pageshow", scheduleRender);
-document.addEventListener("visibilitychange", () => {
+lifecycle.listen(canvas, "pointerdown", scheduleRender);
+lifecycle.listen(canvas, "wheel", scheduleRender, { passive: true });
+lifecycle.listen(canvas, "touchstart", scheduleRender, { passive: true });
+lifecycle.listen(window, "resize", scheduleRender);
+lifecycle.listen(window, "pageshow", scheduleRender);
+lifecycle.listen(document, "visibilitychange", () => {
 	if (document.visibilityState === "hidden") {
 		if (animationFrame !== 0) cancelAnimationFrame(animationFrame);
 		animationFrame = 0;
@@ -336,19 +346,17 @@ document.addEventListener("visibilitychange", () => {
 	}
 	scheduleRender();
 });
-window.addEventListener("pagehide", (event) => {
+lifecycle.listen(window, "pagehide", (event: PageTransitionEvent) => {
 	if (event.persisted || disposed) return;
 	disposed = true;
 	if (animationFrame !== 0) cancelAnimationFrame(animationFrame);
 	animationFrame = 0;
-	shareController.dispose();
-	dragController.dispose();
-	scene.dispose();
+	lifecycle.dispose();
 });
 
 if (import.meta.env.PROD && "serviceWorker" in navigator) {
-	window.addEventListener("load", () => {
-		void registerAppServiceWorker({
+	lifecycle.listen(window, "load", () => {
+		void registerAppServiceWorkerSafely({
 			currentUrl: window.location.href,
 			baseUrl:
 				document.documentElement.dataset.appRootUrl ??

@@ -1,5 +1,5 @@
-import { getAnimatedTransform } from "../domain/animation";
-import type { Dimension, MatrixFor, VectorFor } from "../domain/math";
+import { getAnimatedTransform } from "./animation";
+import type { Dimension, MatrixFor, VectorFor } from "../math/matrix";
 import { type AppState, getWorkspace } from "./state";
 import { getAnimationFrame } from "./playback-state";
 

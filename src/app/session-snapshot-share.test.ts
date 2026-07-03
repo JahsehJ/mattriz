@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { recomputeWorkspace } from "../domain/workspace";
+import { recomputeWorkspace } from "./workspace";
 import { createInitialState } from "./state";
 import {
 	captureSessionSnapshot,
@@ -9,7 +9,7 @@ import {
 import {
 	decodeShareSession,
 	encodeShareSession,
-} from "../infrastructure/session-codec";
+} from "../infrastructure/share/session-codec";
 
 const cameras: CameraSnapshots = {
 	2: { position: [0, 0, 5], target: [0, 0, 0], zoom: 1 },

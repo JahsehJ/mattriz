@@ -1,9 +1,6 @@
-import {
-  collectStaticAssetUrls,
-  createServiceWorkerPolicy
-} from "./sw-policy.js";
+importScripts("./sw-locales-classic.js", "./sw-policy-classic.js");
 
-const policy = createServiceWorkerPolicy(
+const policy = self.MattrizServiceWorker.createServiceWorkerPolicy(
   self.registration.scope,
   self.location.href
 );
@@ -28,7 +25,7 @@ self.addEventListener("install", (event) => {
       const htmlDocuments = await Promise.all(
         responses.map((response) => response.text())
       );
-      const urls = collectStaticAssetUrls(
+      const urls = self.MattrizServiceWorker.collectStaticAssetUrls(
         htmlDocuments,
         policy.appShellUrls,
         policy.appShellUrl

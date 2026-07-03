@@ -1,4 +1,4 @@
-import type { Dimension } from "./math";
+import type { Dimension } from "../math/matrix";
 
 export interface MatrixNode<D extends Dimension> {
 	id: string;

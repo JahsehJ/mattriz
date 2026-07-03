@@ -1,5 +1,9 @@
-import { type AnyMatrixNode, type AnyWorkspace } from "../domain/workspace";
-import { getTransformedVectors } from "../domain/workspace-evaluation";
+import {
+	type AnyMatrixNode,
+	type AnyWorkspace,
+	hasWorkspaceFieldDiagnostic,
+} from "../app/workspace";
+import { getTransformedVectors } from "../app/workspace-evaluation";
 import type { Translate } from "../i18n";
 import {
 	applyEntryColumnTemplate,
@@ -26,7 +30,7 @@ export function renderMatrixCard(
           inputmode="text" maxlength="${maxInputLength}" autocomplete="off"
           value="${escapeHtml(entry)}" data-matrix-id="${matrix.id}"
           data-entry-index="${index}"
-          ${workspace.validity.matrixEntries[matrix.id]?.[index] === false ? "aria-invalid" : ""}
+          ${hasWorkspaceFieldDiagnostic(workspace, matrix.id, "matrix-entry", index) ? "aria-invalid" : ""}
           aria-label="${t("matrixEntry", { label: matrix.label, row: Math.floor(index / columns) + 1, column: (index % columns) + 1 })}" />`,
 		)
 		.join("");
@@ -78,7 +82,7 @@ export function renderVectorMatrix(
 				.map((vector) => {
 					const coordinate = vector.coordinates[componentIndex];
 					const value = coordinate ?? "0";
-					return `<input name="vector-${vector.id}-component-${componentIndex}" type="text" inputmode="text" maxlength="${maxInputLength}" autocomplete="off" value="${escapeHtml(value)}" data-vector-id="${vector.id}" data-vector-column-id="${vector.id}" data-component-index="${componentIndex}" ${workspace.validity.vectorCoordinates[vector.id]?.[componentIndex] === false ? "aria-invalid" : ""} aria-label="${t("vectorComponent", { label: vector.label, component: componentIndex + 1 })}" />`;
+					return `<input name="vector-${vector.id}-component-${componentIndex}" type="text" inputmode="text" maxlength="${maxInputLength}" autocomplete="off" value="${escapeHtml(value)}" data-vector-id="${vector.id}" data-vector-column-id="${vector.id}" data-component-index="${componentIndex}" ${hasWorkspaceFieldDiagnostic(workspace, vector.id, "vector-coordinate", componentIndex) ? "aria-invalid" : ""} aria-label="${t("vectorComponent", { label: vector.label, component: componentIndex + 1 })}" />`;
 				})
 				.join(
 					"",

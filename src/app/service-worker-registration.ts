@@ -10,6 +10,8 @@ interface ServiceWorkerRegistrationOptions {
 	) => Promise<ServiceWorkerRegistration>;
 }
 
+type ServiceWorkerRegistrationErrorReporter = (error: unknown) => void;
+
 export function registerAppServiceWorker({
 	currentUrl,
 	baseUrl,
@@ -21,6 +23,18 @@ export function registerAppServiceWorker({
 	serviceWorkerUrl.searchParams.set("v", version);
 	return register(serviceWorkerUrl, {
 		scope: appRootUrl.pathname,
-		type: "module",
 	});
+}
+
+export async function registerAppServiceWorkerSafely(
+	options: ServiceWorkerRegistrationOptions,
+	reportError: ServiceWorkerRegistrationErrorReporter = (error) =>
+		console.error("Service worker registration failed", error),
+): Promise<ServiceWorkerRegistration | undefined> {
+	try {
+		return await registerAppServiceWorker(options);
+	} catch (error) {
+		reportError(error);
+		return undefined;
+	}
 }

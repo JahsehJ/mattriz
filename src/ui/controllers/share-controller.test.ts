@@ -1,12 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createInitialState } from "./state";
+import { createInitialState } from "../../app/state";
 import { ShareController } from "./share-controller";
 
-const encodeShareSession = vi.hoisted(() => vi.fn());
-
-vi.mock("../infrastructure/session-codec", () => ({
-	encodeShareSession,
-}));
+const encodeShareSession = vi.fn();
 
 function setup() {
 	const button = { textContent: "" };
@@ -32,6 +28,7 @@ function setup() {
 		locale: "en",
 		t: (key) => key,
 		getState: createInitialState,
+		encodeSession: encodeShareSession,
 		getCameras: () => ({
 			2: { position: [0, 0, 10], target: [0, 0, 0], zoom: 1 },
 			3: { position: [7, 7, 7], target: [0, 0, 0], zoom: 1 },

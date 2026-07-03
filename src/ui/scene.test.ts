@@ -1,10 +1,10 @@
 import * as THREE from "three";
 import { describe, expect, it, vi } from "vitest";
+import { disposeSceneResources } from "./scene";
 import {
 	captureCameraSnapshots,
-	disposeSceneResources,
 	restoreCameraSnapshots,
-} from "./scene";
+} from "./scene-camera-state";
 
 describe("scene resource disposal", () => {
 	it("releases grid, vector, label, and renderer resources", () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { evaluateBoundedExpression, evaluateExpression } from "./expression";
+import { evaluateExpression } from "./expression";
 
 describe("mathematical expression evaluation", () => {
 	it("supports arithmetic, precedence, fractions, and scientific notation", () => {
@@ -37,9 +37,7 @@ describe("mathematical expression evaluation", () => {
 		}
 	});
 
-	it("enforces expression length and evaluated bounds", () => {
-		expect(evaluateBoundedExpression("10^2", 100)).toBe(100);
-		expect(evaluateBoundedExpression("101", 100)).toBeNull();
-		expect(evaluateExpression("1".repeat(65))).toBeNull();
+	it("does not impose application input limits", () => {
+		expect(evaluateExpression("1".repeat(65))).not.toBeNull();
 	});
 });

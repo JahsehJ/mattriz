@@ -1,4 +1,9 @@
-import { Dimension, MatrixFor, VectorFor, identityMatrix } from "./math";
+import {
+	type Dimension,
+	type MatrixFor,
+	type VectorFor,
+	identityMatrix,
+} from "../math/matrix";
 import {
 	type WorkspaceEvaluation,
 	type WorkspaceValidity,
@@ -127,15 +132,24 @@ export function canAddWorkspaceNodes<D extends Dimension>(
 export function areWorkspaceMatricesValid<D extends Dimension>(
 	workspace: Workspace<D>,
 ): boolean {
-	return (
-		workspace.validity.structuralErrors.length === 0 &&
-		workspace.matrices.every((matrix) => {
-			const entries = workspace.validity.matrixEntries[matrix.id];
-			return (
-				entries?.length === workspace.dimension ** 2 &&
-				entries.every(Boolean)
-			);
-		})
+	const matrixIds = new Set(workspace.matrices.map(({ id }) => id));
+	return !workspace.validity.diagnostics.some(
+		(diagnostic) =>
+			diagnostic.nodeId === undefined || matrixIds.has(diagnostic.nodeId),
+	);
+}
+
+export function hasWorkspaceFieldDiagnostic(
+	workspace: AnyWorkspace,
+	nodeId: string,
+	field: "matrix-entry" | "vector-coordinate",
+	index: number,
+): boolean {
+	return workspace.validity.diagnostics.some(
+		(diagnostic) =>
+			diagnostic.nodeId === nodeId &&
+			diagnostic.field === field &&
+			(diagnostic.index === undefined || diagnostic.index === index),
 	);
 }
 
@@ -157,8 +171,7 @@ export function restoreWorkspaceState<D extends Dimension>(
 		fallbackEvaluation.dimension !== workspace.dimension
 	)
 		return false;
-	const structuralError = validateWorkspaceDocument(document)[0];
-	if (structuralError) return false;
+	if (validateWorkspaceDocument(document).length > 0) return false;
 	const current = evaluateWorkspace(document);
 
 	workspace.matrices = [...document.matrices];

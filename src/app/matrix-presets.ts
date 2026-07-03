@@ -1,5 +1,5 @@
-import { evaluateExpression } from "./expression";
-import { Dimension, MatrixFor } from "./math";
+import type { Dimension, MatrixFor } from "../math/matrix";
+import { evaluateExpression } from "../math/expression";
 
 export interface MatrixPreset<D extends Dimension = Dimension> {
 	id: string;
@@ -16,7 +16,7 @@ export interface MatrixPreset<D extends Dimension = Dimension> {
 export function getMatrixPresets<D extends Dimension>(
 	dimension: D,
 ): MatrixPreset<D>[] {
-	const definitions: PresetDefinition<D>[] =
+	const definitions: PresetDefinition[] =
 		dimension === 2
 			? [
 					{
@@ -153,15 +153,15 @@ export function getMatrixPresets<D extends Dimension>(
 						],
 					},
 				];
-	return definitions.map((preset) => ({
-		...preset,
-		values: preset.draftValues.map((value) => {
-			const evaluated = evaluateExpression(value);
-			if (evaluated === null)
-				throw new Error(`Invalid preset value: ${value}`);
-			return evaluated;
-		}) as MatrixFor<D>,
-	}));
+	return definitions.map((definition) => {
+		const values = definition.draftValues.map(evaluateExpression);
+		if (values.some((value) => value === null))
+			throw new Error(`Invalid matrix preset: ${definition.id}`);
+		return {
+			...definition,
+			values: values as MatrixFor<D>,
+		};
+	});
 }
 
-type PresetDefinition<D extends Dimension> = Omit<MatrixPreset<D>, "values">;
+type PresetDefinition = Omit<MatrixPreset, "values">;

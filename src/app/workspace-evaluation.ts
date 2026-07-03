@@ -1,18 +1,27 @@
-import { evaluateBoundedExpression } from "./expression";
+import { evaluateExpression } from "../math/expression";
 import {
 	type Dimension,
 	type MatrixFor,
 	type VectorFor,
 	applyMatrixToVector,
 	composeMathNotation,
-} from "./math";
+} from "../math/matrix";
 import {
 	MAX_ABSOLUTE_INPUT_VALUE,
+	MAX_EXPRESSION_LENGTH,
 	MAX_MATRIX_DURATION_MS,
 	MAX_WORKSPACE_NODES,
 	MIN_MATRIX_DURATION_MS,
 } from "./policy";
 import type { WorkspaceDocument } from "./workspace-types";
+
+function evaluateInputExpression(source: string): number | null {
+	if (source.length > MAX_EXPRESSION_LENGTH) return null;
+	const value = evaluateExpression(source);
+	return value !== null && Math.abs(value) <= MAX_ABSOLUTE_INPUT_VALUE
+		? value
+		: null;
+}
 
 export interface EvaluatedMatrix<D extends Dimension> {
 	readonly id: string;
@@ -36,54 +45,68 @@ export interface WorkspaceEvaluation<D extends Dimension> {
 }
 
 export interface WorkspaceValidity {
-	readonly matrixEntries: Readonly<Record<string, readonly boolean[]>>;
-	readonly vectorCoordinates: Readonly<Record<string, readonly boolean[]>>;
-	readonly structuralErrors: readonly WorkspaceStructuralError[];
+	readonly diagnostics: readonly WorkspaceDiagnostic[];
 	readonly valid: boolean;
 }
 
-export type WorkspaceStructuralError =
+export type WorkspaceDiagnosticCode =
 	| "invalid-dimension"
 	| "node-limit-exceeded"
 	| "duplicate-node-id"
 	| "dimension-mismatch"
 	| "invalid-entry-count"
 	| "invalid-entry-type"
-	| "invalid-duration";
+	| "invalid-duration"
+	| "invalid-expression";
+
+export interface WorkspaceDiagnostic {
+	readonly code: WorkspaceDiagnosticCode;
+	readonly nodeId?: string;
+	readonly field?: "matrix-entry" | "vector-coordinate" | "duration";
+	readonly index?: number;
+}
 
 export function evaluateWorkspace<D extends Dimension>(
 	workspace: WorkspaceDocument<D>,
 ): { validity: WorkspaceValidity; evaluation: WorkspaceEvaluation<D> | null } {
-	const matrixEntries: Record<string, boolean[]> = {};
-	const vectorCoordinates: Record<string, boolean[]> = {};
-	const structuralErrors = validateWorkspaceDocument(workspace);
+	const diagnostics = validateWorkspaceDocument(workspace);
 	const matrixValues = workspace.matrices.map((matrix) => {
-		const values = matrix.entries.map((source) =>
-			typeof source === "string"
-				? evaluateBoundedExpression(source, MAX_ABSOLUTE_INPUT_VALUE)
-				: null,
-		);
-		matrixEntries[matrix.id] = values.map((value) => value !== null);
+		const values = matrix.entries.map((source, index) => {
+			const value =
+				typeof source === "string"
+					? evaluateInputExpression(source)
+					: null;
+			if (typeof source === "string" && value === null)
+				diagnostics.push({
+					code: "invalid-expression",
+					nodeId: matrix.id,
+					field: "matrix-entry",
+					index,
+				});
+			return value;
+		});
 		return values;
 	});
 	const vectorValues = workspace.vectors.map((vector) => {
-		const values = vector.coordinates.map((source) =>
-			typeof source === "string"
-				? evaluateBoundedExpression(source, MAX_ABSOLUTE_INPUT_VALUE)
-				: null,
-		);
-		vectorCoordinates[vector.id] = values.map((value) => value !== null);
+		const values = vector.coordinates.map((source, index) => {
+			const value =
+				typeof source === "string"
+					? evaluateInputExpression(source)
+					: null;
+			if (typeof source === "string" && value === null)
+				diagnostics.push({
+					code: "invalid-expression",
+					nodeId: vector.id,
+					field: "vector-coordinate",
+					index,
+				});
+			return value;
+		});
 		return values;
 	});
-	const valid =
-		structuralErrors.length === 0 &&
-		[...matrixValues, ...vectorValues].every((values) =>
-			values.every((value) => value !== null),
-		);
+	const valid = diagnostics.length === 0;
 	const validity = {
-		matrixEntries,
-		vectorCoordinates,
-		structuralErrors,
+		diagnostics,
 		valid,
 	};
 	if (!valid) return { validity, evaluation: null };
@@ -127,38 +150,77 @@ export function getTransformedVectors<D extends Dimension>(
 
 export function validateWorkspaceDocument<D extends Dimension>(
 	workspace: WorkspaceDocument<D>,
-): WorkspaceStructuralError[] {
-	const errors = new Set<WorkspaceStructuralError>();
+): WorkspaceDiagnostic[] {
+	const diagnostics: WorkspaceDiagnostic[] = [];
 	const dimension = workspace.dimension;
-	if (dimension !== 2 && dimension !== 3) errors.add("invalid-dimension");
+	const addDocumentDiagnostic = (code: WorkspaceDiagnosticCode) => {
+		if (!diagnostics.some((diagnostic) => diagnostic.code === code))
+			diagnostics.push({ code });
+	};
+	if (dimension !== 2 && dimension !== 3)
+		addDocumentDiagnostic("invalid-dimension");
 	if (
 		workspace.matrices.length > MAX_WORKSPACE_NODES ||
 		workspace.vectors.length > MAX_WORKSPACE_NODES
 	)
-		errors.add("node-limit-exceeded");
+		addDocumentDiagnostic("node-limit-exceeded");
 	if (hasDuplicateNodeIds([...workspace.matrices, ...workspace.vectors]))
-		errors.add("duplicate-node-id");
+		addDocumentDiagnostic("duplicate-node-id");
 	for (const matrix of workspace.matrices) {
-		if (matrix.dimension !== dimension) errors.add("dimension-mismatch");
+		if (matrix.dimension !== dimension)
+			diagnostics.push({
+				code: "dimension-mismatch",
+				nodeId: matrix.id,
+			});
 		if (matrix.entries.length !== dimension ** 2)
-			errors.add("invalid-entry-count");
-		if (matrix.entries.some((entry) => typeof entry !== "string"))
-			errors.add("invalid-entry-type");
+			diagnostics.push({
+				code: "invalid-entry-count",
+				nodeId: matrix.id,
+				field: "matrix-entry",
+			});
+		matrix.entries.forEach((entry, index) => {
+			if (typeof entry !== "string")
+				diagnostics.push({
+					code: "invalid-entry-type",
+					nodeId: matrix.id,
+					field: "matrix-entry",
+					index,
+				});
+		});
 		if (
 			!Number.isFinite(matrix.durationMs) ||
 			matrix.durationMs < MIN_MATRIX_DURATION_MS ||
 			matrix.durationMs > MAX_MATRIX_DURATION_MS
 		)
-			errors.add("invalid-duration");
+			diagnostics.push({
+				code: "invalid-duration",
+				nodeId: matrix.id,
+				field: "duration",
+			});
 	}
 	for (const vector of workspace.vectors) {
-		if (vector.dimension !== dimension) errors.add("dimension-mismatch");
+		if (vector.dimension !== dimension)
+			diagnostics.push({
+				code: "dimension-mismatch",
+				nodeId: vector.id,
+			});
 		if (vector.coordinates.length !== dimension)
-			errors.add("invalid-entry-count");
-		if (vector.coordinates.some((entry) => typeof entry !== "string"))
-			errors.add("invalid-entry-type");
+			diagnostics.push({
+				code: "invalid-entry-count",
+				nodeId: vector.id,
+				field: "vector-coordinate",
+			});
+		vector.coordinates.forEach((entry, index) => {
+			if (typeof entry !== "string")
+				diagnostics.push({
+					code: "invalid-entry-type",
+					nodeId: vector.id,
+					field: "vector-coordinate",
+					index,
+				});
+		});
 	}
-	return [...errors];
+	return diagnostics;
 }
 
 function hasDuplicateNodeIds(nodes: readonly unknown[]): boolean {

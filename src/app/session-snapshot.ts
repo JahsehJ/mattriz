@@ -4,37 +4,28 @@ import {
 	type VectorFor,
 	cloneMatrix,
 	composeMathNotation,
-} from "../domain/math";
+} from "../math/matrix";
 import {
 	type MatrixNode,
 	type VectorNode,
 	type Workspace,
 	restoreWorkspaceState,
-} from "../domain/workspace";
+} from "./workspace";
 import type {
 	EvaluatedMatrix,
 	EvaluatedVector,
 	WorkspaceEvaluation,
-} from "../domain/workspace-evaluation";
-import type { WorkspaceDocument } from "../domain/workspace-types";
+} from "./workspace-evaluation";
+import type { WorkspaceDocument } from "./workspace-types";
 import { type AppState, createInitialState } from "./state";
-import { type AnimationMode } from "../domain/animation";
+import { type AnimationMode } from "./animation";
 import { type PlaybackState, restorePausedPlayback } from "./playback-state";
 import {
 	MAX_RENDER_TRANSFORM_VALUE,
 	canRenderWorkspace,
-} from "../rendering/capability";
-
-export interface CameraSnapshot {
-	position: [number, number, number];
-	target: [number, number, number];
-	zoom: number;
-}
-
-export interface CameraSnapshots {
-	2: CameraSnapshot;
-	3: CameraSnapshot;
-}
+} from "./renderability-policy";
+import type { CameraSnapshots } from "./camera-snapshot";
+export type { CameraSnapshot, CameraSnapshots } from "./camera-snapshot";
 
 export type MatrixSnapshot = Omit<MatrixNode<Dimension>, "id" | "dimension">;
 export type VectorSnapshot = Omit<VectorNode<Dimension>, "id" | "dimension">;

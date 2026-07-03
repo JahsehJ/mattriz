@@ -2,12 +2,12 @@ import {
 	areWorkspaceMatricesValid,
 	canAddWorkspaceNodes,
 	type AnyWorkspace,
-} from "../domain/workspace";
+} from "../app/workspace";
 import {
 	analyzeRealEigenbasis,
 	analyzeRepresentativeRealEigenvector,
-} from "../domain/math";
-import { type MatrixPreset, getMatrixPresets } from "../domain/presets";
+} from "../math/eigensystem";
+import { type MatrixPreset, getMatrixPresets } from "../app/matrix-presets";
 import type { Translate } from "../i18n";
 import {
 	renderMatrixCard,

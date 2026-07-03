@@ -1,17 +1,17 @@
-import { type Mat2, type Mat3, identityMatrix } from "../domain/math";
-import { MAX_EXPRESSION_LENGTH } from "../domain/policy";
-import { type AppState, getWorkspace } from "./state";
-import { recomputeWorkspace } from "../domain/workspace";
-import type { MessageKey, Translate } from "../i18n";
-import { type MoveDirection } from "./workspace-actions";
+import { type Mat2, type Mat3, identityMatrix } from "../../math/matrix";
+import { MAX_EXPRESSION_LENGTH } from "../../app/policy";
+import { type AppState, getWorkspace } from "../../app/state";
+import { recomputeWorkspace } from "../../app/workspace";
+import type { MessageKey, Translate } from "../../i18n";
+import { type MoveDirection } from "../../app/workspace-actions";
 import {
 	getAnimationDuration,
 	getAnimationProgress,
-} from "../domain/animation";
+} from "../../app/animation";
 import {
 	canRenderTransform,
 	canRenderWorkspace,
-} from "../rendering/capability";
+} from "../../app/renderability-policy";
 import {
 	getAnimationFrame,
 	getPlaybackElapsed,
@@ -19,10 +19,10 @@ import {
 	resetPlayback as resetPlaybackState,
 	togglePlayback as togglePlaybackState,
 	type PlaybackStatus,
-} from "./playback-state";
-import { EquationRenderer } from "../ui/equation-renderer";
+} from "../../app/playback-state";
+import { EquationRenderer } from "../equation-renderer";
 import { EquationInputController } from "./equation-input-controller";
-import { WorkspaceEditor } from "./workspace-editor";
+import { WorkspaceEditor } from "../../app/workspace-editor";
 
 interface ApplicationControllerOptions {
 	getState(): AppState;

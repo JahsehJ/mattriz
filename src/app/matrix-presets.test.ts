@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { evaluateExpression } from "./expression";
-import { getMatrixPresets } from "./presets";
+import { evaluateExpression } from "../math/expression";
+import { getMatrixPresets } from "./matrix-presets";
 
 describe("matrix presets", () => {
 	it("provides the intended presets for each dimension", () => {

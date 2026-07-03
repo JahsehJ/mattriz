@@ -1,8 +1,8 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
-import { createMatrixNode, recomputeWorkspace } from "../domain/workspace";
-import { MAX_RENDER_TRANSFORM_VALUE } from "../rendering/capability";
+import { createMatrixNode, recomputeWorkspace } from "../../app/workspace";
+import { MAX_RENDER_TRANSFORM_VALUE } from "../../app/renderability-policy";
 import { ApplicationController } from "./application-controller";
-import { createInitialState } from "./state";
+import { createInitialState } from "../../app/state";
 
 beforeAll(() => {
 	vi.stubGlobal("CSS", { escape: (value: string) => value });

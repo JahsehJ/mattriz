@@ -1,4 +1,4 @@
-import type { AnimationFrame, AnimationMode } from "../domain/animation";
+import type { AnimationFrame, AnimationMode } from "./animation";
 
 export type PlaybackStatus = "idle" | "playing" | "paused";
 

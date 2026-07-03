@@ -1,17 +1,16 @@
 import {
-	type MatrixFor,
-	type VectorFor,
 	analyzeRealEigenbasis,
 	analyzeRepresentativeRealEigenvector,
-} from "../domain/math";
-import { getMatrixPresets } from "../domain/presets";
+} from "../math/eigensystem";
+import type { MatrixFor, VectorFor } from "../math/matrix";
+import { getMatrixPresets } from "./matrix-presets";
 import {
 	type AnyWorkspace,
 	areWorkspaceMatricesValid,
 	canAddWorkspaceNodes,
 	createMatrixNode,
 	createVectorNode,
-} from "../domain/workspace";
+} from "./workspace";
 import {
 	type MoveDirection,
 	type MoveResult,

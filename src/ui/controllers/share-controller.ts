@@ -3,15 +3,15 @@ import {
 	type Locale,
 	type MessageKey,
 	type Translate,
-} from "../i18n";
-import { getAlternateLocaleUrl, getAppRootUrl } from "./locale-routing";
+} from "../../i18n";
+import { getAlternateLocaleUrl, getAppRootUrl } from "../../app/locale-routing";
+import type { CameraSnapshots } from "../../app/camera-snapshot";
+import type { AppState } from "../../app/state";
+import { getPlaybackElapsed } from "../../app/playback-state";
 import {
-	encodeShareSession,
-	type CameraSnapshots,
-} from "../infrastructure/session-codec";
-import type { AppState } from "./state";
-import { getPlaybackElapsed } from "./playback-state";
-import { captureSessionSnapshot } from "./session-snapshot";
+	captureSessionSnapshot,
+	type SessionSnapshot,
+} from "../../app/session-snapshot";
 
 interface ShareControllerOptions {
 	root: HTMLElement;
@@ -22,6 +22,7 @@ interface ShareControllerOptions {
 	t: Translate;
 	getState(): AppState;
 	getCameras(): CameraSnapshots;
+	encodeSession(session: SessionSnapshot): Promise<string>;
 }
 
 export class ShareController {
@@ -84,7 +85,7 @@ export class ShareController {
 			state.animation.status === "idle"
 				? 0
 				: getPlaybackElapsed(state.animation, performance.now());
-		return encodeShareSession(
+		return this.options.encodeSession(
 			captureSessionSnapshot(state, elapsedMs, this.options.getCameras()),
 		);
 	}

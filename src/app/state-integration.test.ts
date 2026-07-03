@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createInitialState } from "./state";
-import { canRenderMatrixSequence } from "../rendering/capability";
+import { canRenderMatrixSequence } from "./renderability-policy";
 import { getRenderState } from "./render-state";
 
 describe("application state integration", () => {

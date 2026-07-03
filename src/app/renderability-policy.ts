@@ -3,9 +3,9 @@ import {
 	type MatrixFor,
 	identityMatrix,
 	multiplyMatrix,
-} from "../domain/math";
-import type { Workspace } from "../domain/workspace";
-import type { WorkspaceEvaluation } from "../domain/workspace-evaluation";
+} from "../math/matrix";
+import type { Workspace } from "./workspace";
+import type { WorkspaceEvaluation } from "./workspace-evaluation";
 
 // WebGL stores transforms as Float32 values. The margin leaves room for
 // subsequent vector calculations.

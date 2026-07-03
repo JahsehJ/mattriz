@@ -24,14 +24,14 @@ test("shares and restores the current workspace", async ({ page }) => {
 	).toHaveValue("sqrt(2)");
 });
 
-test("registers the module service worker and serves an app shell offline", async ({
+test("registers the service worker and serves an app shell offline", async ({
 	browserName,
 	context,
 	page,
 }) => {
 	test.skip(
 		browserName === "webkit",
-		"WebKit does not activate module service workers",
+		"Playwright WebKit does not run service workers; validate real Safari separately",
 	);
 	await page.goto("/zh-hant/");
 	await page.evaluate(async () => {

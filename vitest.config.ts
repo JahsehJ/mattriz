@@ -9,31 +9,36 @@ export default defineConfig({
 			// Browser-only entry points are covered by Playwright instead.
 			include: [
 				"src/app/**/*.ts",
-				"src/domain/**/*.ts",
+				"src/contracts/**/*.ts",
 				"src/i18n/**/*.ts",
 				"src/infrastructure/**/*.ts",
-				"src/rendering/**/*.ts",
+				"src/math/**/*.ts",
 				"src/ui/**/*.ts",
 				"public/sw-policy.js",
 			],
-			exclude: ["src/ui/scene.ts"],
 			reporter: ["text", "html"],
 			thresholds: {
 				statements: 68,
 				branches: 55,
 				functions: 80,
 				lines: 68,
-				"src/domain/**/*.ts": {
-					statements: 85,
-					branches: 75,
-					functions: 95,
-					lines: 90,
-				},
-				"src/infrastructure/session-codec.ts": {
+				"src/infrastructure/share/session-codec.ts": {
 					statements: 65,
 					branches: 55,
 					functions: 77,
 					lines: 67,
+				},
+				"src/math/expression.ts": {
+					statements: 90,
+					branches: 80,
+					functions: 90,
+					lines: 90,
+				},
+				"src/math/eigensystem.ts": {
+					statements: 80,
+					branches: 65,
+					functions: 85,
+					lines: 80,
 				},
 			},
 		},

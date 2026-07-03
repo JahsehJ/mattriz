@@ -4,9 +4,8 @@ import {
 	cloneMatrix,
 	composeMathNotation,
 	identityMatrix,
-	lerpMatrix,
 	multiplyMatrix,
-} from "./math";
+} from "../math/matrix";
 import { MAX_MATRIX_DURATION_MS, MIN_MATRIX_DURATION_MS } from "./policy";
 
 export type AnimationMode = "steps" | "composed";
@@ -36,6 +35,20 @@ interface ActiveStep {
 	readonly progress: number;
 }
 
+function interpolateClampedMatrix<D extends Dimension>(
+	dimension: D,
+	from: MatrixFor<D>,
+	to: MatrixFor<D>,
+	amount: number,
+): MatrixFor<D> {
+	const progress = Math.min(1, Math.max(0, amount));
+	const length = dimension === 2 ? 4 : 9;
+	return Array.from(
+		{ length },
+		(_, index) => from[index] + (to[index] - from[index]) * progress,
+	) as MatrixFor<D>;
+}
+
 export function getAnimatedTransform<D extends Dimension>(
 	sequence: AnimationSequence<D>,
 	appliedTransform: Readonly<MatrixFor<D>>,
@@ -51,7 +64,7 @@ export function getAnimatedTransform<D extends Dimension>(
 		const animationProgress = getAnimationProgress(sequence, frame);
 		if (animationProgress?.mode !== "composed")
 			return cloneMatrix(appliedTransform);
-		return lerpMatrix(
+		return interpolateClampedMatrix(
 			sequence.dimension,
 			identityMatrix(sequence.dimension),
 			totalTransform,
@@ -84,7 +97,7 @@ export function getStepTransform<D extends Dimension>(
 
 	if (!activeStep) return accumulated;
 	const matrix = sequence.matrices[activeStep.index];
-	const partial = lerpMatrix(
+	const partial = interpolateClampedMatrix(
 		sequence.dimension,
 		identityMatrix(sequence.dimension),
 		matrix.values,

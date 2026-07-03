@@ -1,49 +1,52 @@
 import { describe, expect, it } from "vitest";
 import {
-	Mat2,
-	Mat3,
-	applyMatrixToVector,
-	composeMathNotation,
 	analyzeRealEigenbasis,
 	analyzeRepresentativeRealEigenvector,
-	lerpMatrix,
-	multiply2,
-	multiply3,
-} from "./math";
-
-describe("matrix multiplication", () => {
-	it("multiplies 2x2 matrices", () => {
-		expect(multiply2([1, 2, 3, 4], [5, 6, 7, 8])).toEqual([19, 22, 43, 50]);
-	});
-
-	it("multiplies 3x3 matrices", () => {
-		const a: Mat3 = [1, 2, 3, 4, 5, 6, 7, 8, 9];
-		const b: Mat3 = [9, 8, 7, 6, 5, 4, 3, 2, 1];
-
-		expect(multiply3(a, b)).toEqual([30, 24, 18, 84, 69, 54, 138, 114, 90]);
-	});
-
-	it("composes visible matrices in mathematical right-to-left order", () => {
-		const scaleX: Mat2 = [2, 0, 0, 1];
-		const shearXByY: Mat2 = [1, 1, 0, 1];
-		const transform = composeMathNotation(2, [scaleX, shearXByY]);
-
-		expect(applyMatrixToVector(2, transform, [1, 1])).toEqual([4, 1]);
-	});
-});
-
-describe("matrix interpolation", () => {
-	it("interpolates each entry and clamps progress to the animation interval", () => {
-		const from: Mat2 = [1, 0, 0, 1];
-		const to: Mat2 = [3, 2, 2, 3];
-
-		expect(lerpMatrix(2, from, to, 0.5)).toEqual([2, 1, 1, 2]);
-		expect(lerpMatrix(2, from, to, -0.1)).toEqual(from);
-		expect(lerpMatrix(2, from, to, 1.1)).toEqual(to);
-	});
-});
+} from "./eigensystem";
+import type { Mat2, Mat3 } from "./matrix";
 
 describe("real eigensystems", () => {
+	it("keeps randomized symmetric-matrix eigenvectors within a residual envelope", () => {
+		let seed = 0x5eed;
+		const random = (): number => {
+			seed = (1664525 * seed + 1013904223) >>> 0;
+			return seed / 2 ** 32;
+		};
+		for (let sample = 0; sample < 40; sample += 1) {
+			const angle = random() * Math.PI * 2;
+			const eigenvalues = [
+				(random() * 2 - 1) * 1e4,
+				(random() * 2 - 1) * 1e4,
+			];
+			const cosine = Math.cos(angle);
+			const sine = Math.sin(angle);
+			const matrix: Mat2 = [
+				eigenvalues[0] * cosine ** 2 + eigenvalues[1] * sine ** 2,
+				(eigenvalues[0] - eigenvalues[1]) * cosine * sine,
+				(eigenvalues[0] - eigenvalues[1]) * cosine * sine,
+				eigenvalues[0] * sine ** 2 + eigenvalues[1] * cosine ** 2,
+			];
+			const result = analyzeRealEigenbasis(2, matrix);
+			expect(result.kind).toBe("basis");
+			if (result.kind !== "basis") continue;
+			for (const vector of result.vectors) {
+				const transformed = [
+					matrix[0] * vector[0] + matrix[1] * vector[1],
+					matrix[2] * vector[0] + matrix[3] * vector[1],
+				];
+				const lambda =
+					vector[0] * transformed[0] + vector[1] * transformed[1];
+				const residual = Math.hypot(
+					transformed[0] - lambda * vector[0],
+					transformed[1] - lambda * vector[1],
+				);
+				expect(residual).toBeLessThan(
+					1e-8 * Math.max(1, ...matrix.map(Math.abs)),
+				);
+			}
+		}
+	});
+
 	it("returns normalized eigenvectors for distinct and repeated eigenvalues", () => {
 		expect(analyzeRealEigenbasis(2, [2, 0, 0, 3])).toEqual({
 			kind: "basis",

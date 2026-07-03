@@ -23,7 +23,7 @@ export default defineConfig(({ command, mode }) => {
 		base: "./",
 		server: {
 			watch: {
-				ignored: ["**/coverage/**"],
+				ignored: ["**/coverage/**", "**/test-results/**"],
 			},
 		},
 		build: {

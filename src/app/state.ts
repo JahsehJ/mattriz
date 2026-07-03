@@ -1,8 +1,8 @@
-import { type Dimension, type MatrixFor, identityMatrix } from "../domain/math";
-import { type Workspace, createWorkspace } from "../domain/workspace";
+import { type Dimension, type MatrixFor, identityMatrix } from "../math/matrix";
+import { type Workspace, createWorkspace } from "./workspace";
 import type { PlaybackState } from "./playback-state";
 
-export type { AnimationMode, AnimationProgress } from "../domain/animation";
+export type { AnimationMode, AnimationProgress } from "./animation";
 export type { PlaybackState, PlaybackStatus } from "./playback-state";
 
 export interface AppState {

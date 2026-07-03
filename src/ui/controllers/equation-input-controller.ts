@@ -1,16 +1,19 @@
 import {
 	MAX_MATRIX_DURATION_MS,
 	MIN_MATRIX_DURATION_MS,
-} from "../domain/policy";
-import { type AnyWorkspace } from "../domain/workspace";
-import { getTransformedVectors } from "../domain/workspace-evaluation";
-import type { Translate } from "../i18n";
-import { applyEntryColumnTemplate } from "../ui/equation-layout";
+} from "../../app/policy";
+import {
+	type AnyWorkspace,
+	hasWorkspaceFieldDiagnostic,
+} from "../../app/workspace";
+import { getTransformedVectors } from "../../app/workspace-evaluation";
+import type { Translate } from "../../i18n";
+import { applyEntryColumnTemplate } from "../equation-layout";
 import {
 	updateMatrixGridWidth,
 	updateVectorColumnWidths,
-} from "../ui/equation-cards";
-import { formatDisplayNumber } from "../ui/number-formatting";
+} from "../equation-cards";
+import { formatDisplayNumber } from "../number-formatting";
 
 interface EquationInputControllerOptions {
 	getWorkspace(): AnyWorkspace;
@@ -119,7 +122,12 @@ export class EquationInputController {
 				.forEach((input, index) =>
 					input.toggleAttribute(
 						"aria-invalid",
-						validity.matrixEntries[matrix.id]?.[index] === false,
+						hasWorkspaceFieldDiagnostic(
+							workspace,
+							matrix.id,
+							"matrix-entry",
+							index,
+						),
 					),
 				);
 		});
@@ -131,8 +139,12 @@ export class EquationInputController {
 				.forEach((input, index) =>
 					input.toggleAttribute(
 						"aria-invalid",
-						validity.vectorCoordinates[vector.id]?.[index] ===
-							false,
+						hasWorkspaceFieldDiagnostic(
+							workspace,
+							vector.id,
+							"vector-coordinate",
+							index,
+						),
 					),
 				);
 		});

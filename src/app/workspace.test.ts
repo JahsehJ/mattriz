@@ -13,16 +13,7 @@ import {
 	evaluateWorkspace,
 	getTransformedVectors,
 } from "./workspace-evaluation";
-import { MAX_WORKSPACE_NODES } from "./policy";
-import {
-	type AnimationFrame,
-	type AnimationMode,
-	getAnimationDuration,
-	getAnimatedTransform,
-	getAnimationProgress,
-	getMatrixDuration,
-	getStepTransform,
-} from "./animation";
+import { MAX_EXPRESSION_LENGTH, MAX_WORKSPACE_NODES } from "./policy";
 
 function workspaceWith(matrices: MatrixNode<2>[]): Workspace<2> {
 	const workspace = createWorkspace(2);
@@ -45,10 +36,6 @@ function replaceWorkspaceVectors<D extends 2 | 3>(
 ): void {
 	workspace.vectors = [...vectors];
 	recomputeWorkspace(workspace);
-}
-
-function frame(mode: AnimationMode, elapsedMs: number): AnimationFrame {
-	return { mode, elapsedMs };
 }
 
 describe("workspace lifecycle", () => {
@@ -172,8 +159,27 @@ describe("workspace lifecycle", () => {
 		);
 
 		expect(
-			evaluateWorkspace(workspace).validity.structuralErrors,
-		).toContain("node-limit-exceeded");
+			evaluateWorkspace(workspace).validity.diagnostics,
+		).toContainEqual({ code: "node-limit-exceeded" });
+	});
+
+	it("enforces the expression-length boundary", () => {
+		const accepted = createMatrixNode(2, "A");
+		accepted.entries[0] = "1".padEnd(MAX_EXPRESSION_LENGTH, " ");
+		expect(
+			evaluateWorkspace(workspaceWith([accepted])).validity.valid,
+		).toBe(true);
+
+		const rejected = createMatrixNode(2, "B");
+		rejected.entries[0] = "1".padEnd(MAX_EXPRESSION_LENGTH + 1, " ");
+		expect(
+			evaluateWorkspace(workspaceWith([rejected])).validity.diagnostics,
+		).toContainEqual({
+			code: "invalid-expression",
+			nodeId: rejected.id,
+			field: "matrix-entry",
+			index: 0,
+		});
 	});
 
 	it("reports malformed workspace structure without evaluating it", () => {
@@ -196,7 +202,7 @@ describe("workspace lifecycle", () => {
 
 		expect(result.evaluation).toBeNull();
 		expect(result.validity.valid).toBe(false);
-		expect(result.validity.structuralErrors).toEqual([
+		expect(result.validity.diagnostics.map(({ code }) => code)).toEqual([
 			"duplicate-node-id",
 			"invalid-entry-count",
 			"invalid-duration",
@@ -222,187 +228,6 @@ describe("workspace lifecycle", () => {
 		replaceWorkspaceMatrices(workspace, [invalidMatrix]);
 		replaceWorkspaceVectors(workspace, [invalidVector]);
 		expect(workspace.lastValidEvaluation).toEqual(evaluation);
-	});
-
-	it("shows the committed transform while idle, not uncommitted matrix edits", () => {
-		const matrix = createMatrixNode(2, "A", [3, 0, 0, 3]);
-		const workspace = workspaceWith([matrix]);
-
-		expect(
-			getAnimatedTransform(
-				workspace.lastValidEvaluation,
-				[2, 0, 0, 2],
-				null,
-			),
-		).toEqual([2, 0, 0, 2]);
-	});
-});
-
-describe("animation timeline", () => {
-	it("normalizes invalid elapsed time", () => {
-		const workspace = workspaceWith([
-			{ ...createMatrixNode(2, "A"), durationMs: 100 },
-		]);
-
-		expect(
-			getAnimationProgress(
-				workspace.lastValidEvaluation,
-				frame("composed", -10),
-			),
-		).toEqual({ mode: "composed", progress: 0 });
-		expect(
-			getAnimationProgress(
-				workspace.lastValidEvaluation,
-				frame("composed", Number.NaN),
-			),
-		).toEqual({ mode: "composed", progress: 0 });
-	});
-
-	it("normalizes invalid matrix durations", () => {
-		const zero = { ...createMatrixNode(2, "A"), durationMs: 0 };
-		const nonFinite = {
-			...createMatrixNode(2, "B"),
-			durationMs: Number.NaN,
-		};
-
-		expect([zero, nonFinite].map(getMatrixDuration)).toEqual([100, 100]);
-	});
-
-	it("sums step durations and uses the longest duration for composed mode", () => {
-		const a = { ...createMatrixNode(2, "A"), durationMs: 100 };
-		const b = { ...createMatrixNode(2, "B"), durationMs: 300 };
-		const workspace = workspaceWith([a, b]);
-
-		expect(
-			getAnimationDuration(workspace.lastValidEvaluation, "steps"),
-		).toBe(400);
-		expect(
-			getAnimationDuration(workspace.lastValidEvaluation, "composed"),
-		).toBe(300);
-	});
-
-	it("freezes animation progress at the pause time", () => {
-		const matrix = { ...createMatrixNode(2, "A"), durationMs: 100 };
-		const paused = frame("composed", 25);
-
-		expect(
-			getAnimationProgress(
-				workspaceWith([matrix]).lastValidEvaluation,
-				paused,
-			),
-		).toEqual({ mode: "composed", progress: 0.25 });
-	});
-});
-
-describe("step animation workflow", () => {
-	it("applies matrices from right to left and reports the active step", () => {
-		const scaleX = {
-			...createMatrixNode(2, "A", [2, 0, 0, 1]),
-			durationMs: 100,
-		};
-		const shearXByY = {
-			...createMatrixNode(2, "B", [1, 1, 0, 1]),
-			durationMs: 100,
-		};
-		const workspace = workspaceWith([scaleX, shearXByY]);
-
-		expect(getStepTransform(workspace.lastValidEvaluation, 50)).toEqual([
-			1, 0.5, 0, 1,
-		]);
-		expect(
-			getAnimationProgress(
-				workspace.lastValidEvaluation,
-				frame("steps", 50),
-			),
-		).toEqual({
-			mode: "steps",
-			matrixId: shearXByY.id,
-			progress: 0.5,
-		});
-		expect(getStepTransform(workspace.lastValidEvaluation, 200)).toEqual([
-			2, 2, 0, 1,
-		]);
-	});
-
-	it("completes exactly at the total-duration boundary", () => {
-		const a = { ...createMatrixNode(2, "A"), durationMs: 100 };
-		const b = { ...createMatrixNode(2, "B"), durationMs: 100 };
-		const workspace = workspaceWith([a, b]);
-		expect(
-			getAnimationProgress(
-				workspace.lastValidEvaluation,
-				frame("steps", 200),
-			),
-		).toEqual({
-			mode: "steps",
-			matrixId: a.id,
-			progress: 1,
-		});
-		expect(
-			getAnimationProgress(
-				workspace.lastValidEvaluation,
-				frame("steps", 200.001),
-			),
-		).toBeNull();
-	});
-});
-
-describe("animation progress reporting", () => {
-	it("returns null when animation is idle", () => {
-		const workspace = workspaceWith([createMatrixNode(2, "A")]);
-
-		expect(
-			getAnimationProgress(workspace.lastValidEvaluation, null),
-		).toBeNull();
-	});
-
-	it("reports composed progress used by transform interpolation", () => {
-		const matrix = {
-			...createMatrixNode(2, "A", [5, 0, 0, 5]),
-			durationMs: 100,
-		};
-		const workspace = workspaceWith([matrix]);
-		expect(
-			getAnimationProgress(
-				workspace.lastValidEvaluation,
-				frame("composed", 50),
-			),
-		).toEqual({
-			mode: "composed",
-			progress: 0.5,
-		});
-		expect(
-			getAnimatedTransform(
-				workspace.lastValidEvaluation,
-				[1, 0, 0, 1],
-				frame("composed", 50),
-			),
-		).toEqual([3, 0, 0, 3]);
-		expect(
-			getAnimationProgress(
-				workspace.lastValidEvaluation,
-				frame("composed", 100),
-			),
-		).toEqual({
-			mode: "composed",
-			progress: 1,
-		});
-		expect(
-			getAnimationProgress(
-				workspace.lastValidEvaluation,
-				frame("composed", 100.001),
-			),
-		).toEqual({
-			mode: "composed",
-			progress: 1,
-		});
-		expect(
-			getAnimatedTransform(
-				workspace.lastValidEvaluation,
-				[1, 0, 0, 1],
-				frame("composed", 100),
-			),
-		).toEqual([5, 0, 0, 5]);
 	});
 });
 

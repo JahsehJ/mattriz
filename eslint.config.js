@@ -23,6 +23,56 @@ export default tseslint.config(
 		},
 	},
 	{
+		files: ["src/math/**/*.ts"],
+		rules: {
+			"no-restricted-imports": [
+				"error",
+				{ patterns: ["../app/**", "../ui/**", "../infrastructure/**"] },
+			],
+		},
+	},
+	{
+		files: ["src/app/**/*.ts"],
+		rules: {
+			"no-restricted-imports": [
+				"error",
+				{
+					patterns: [
+						"../ui/**",
+						"../infrastructure/**",
+						"../rendering/**",
+					],
+				},
+			],
+		},
+	},
+	{
+		files: ["src/ui/**/*.ts"],
+		rules: {
+			"no-restricted-imports": [
+				"error",
+				{
+					patterns: [
+						"../infrastructure/**",
+						"../../infrastructure/**",
+					],
+				},
+			],
+		},
+	},
+	{
+		files: ["src/infrastructure/**/*.ts"],
+		rules: {
+			"no-restricted-imports": ["error", { patterns: ["../ui/**"] }],
+		},
+	},
+	{
+		files: ["src/**/*.test.ts"],
+		rules: {
+			"no-restricted-imports": "off",
+		},
+	},
+	{
 		files: ["public/sw.js"],
 		languageOptions: {
 			globals: globals.serviceworker,

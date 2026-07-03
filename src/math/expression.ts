@@ -1,7 +1,4 @@
-import { MAX_EXPRESSION_LENGTH } from "./policy";
-
 export function evaluateExpression(source: string): number | null {
-	if (source.length > MAX_EXPRESSION_LENGTH) return null;
 	try {
 		const parser = new ExpressionParser(source);
 		const value = parser.parse();
@@ -9,14 +6,6 @@ export function evaluateExpression(source: string): number | null {
 	} catch {
 		return null;
 	}
-}
-
-export function evaluateBoundedExpression(
-	source: string,
-	maxAbsoluteValue: number,
-): number | null {
-	const value = evaluateExpression(source);
-	return value !== null && Math.abs(value) <= maxAbsoluteValue ? value : null;
 }
 
 class ExpressionParser {

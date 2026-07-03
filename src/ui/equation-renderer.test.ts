@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { recomputeWorkspace } from "../domain/workspace";
+import { recomputeWorkspace } from "../app/workspace";
 import { createInitialState } from "../app/state";
 import { EquationRenderer } from "./equation-renderer";
 

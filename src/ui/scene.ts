@@ -8,12 +8,14 @@ import {
 	MatrixValues,
 	Vec3,
 	applyMatrixToVector,
-} from "../domain/math";
+} from "../math/matrix";
 import type { RenderState, RenderVector } from "../app/render-state";
-import type {
-	CameraSnapshot,
-	CameraSnapshots,
-} from "../infrastructure/session-codec";
+import type { CameraSnapshots } from "../app/camera-snapshot";
+import { reconcileOwnedVisuals } from "./vector-visual-reconciler";
+import {
+	captureCameraSnapshots,
+	restoreCameraSnapshots,
+} from "./scene-camera-state";
 
 const GRID_EXTENT = 240;
 const GRID_STEP = 1;
@@ -58,11 +60,6 @@ interface VectorVisual {
 	color: string;
 }
 
-interface CameraControls {
-	readonly target: THREE.Vector3;
-	update(): boolean;
-}
-
 interface SceneResources {
 	gridGroup: THREE.Group;
 	axisLabels: THREE.Group;
@@ -73,29 +70,6 @@ interface SceneResources {
 		head: THREE.BufferGeometry;
 	};
 	renderer: { dispose(): void };
-}
-
-export function captureCameraSnapshots(
-	orthoCamera: THREE.OrthographicCamera,
-	orthoControls: CameraControls,
-	perspectiveCamera: THREE.PerspectiveCamera,
-	perspectiveControls: CameraControls,
-): CameraSnapshots {
-	return {
-		2: captureCameraSnapshot(orthoCamera, orthoControls.target),
-		3: captureCameraSnapshot(perspectiveCamera, perspectiveControls.target),
-	};
-}
-
-export function restoreCameraSnapshots(
-	snapshots: CameraSnapshots,
-	orthoCamera: THREE.OrthographicCamera,
-	orthoControls: CameraControls,
-	perspectiveCamera: THREE.PerspectiveCamera,
-	perspectiveControls: CameraControls,
-): void {
-	restoreCameraSnapshot(orthoCamera, orthoControls, snapshots[2]);
-	restoreCameraSnapshot(perspectiveCamera, perspectiveControls, snapshots[3]);
 }
 
 export function disposeSceneResources(resources: SceneResources): void {
@@ -120,33 +94,6 @@ export function disposeSceneResources(resources: SceneResources): void {
 	resources.arrowGeometries.shaft.dispose();
 	resources.arrowGeometries.head.dispose();
 	resources.renderer.dispose();
-}
-
-function captureCameraSnapshot(
-	camera: THREE.Camera & { zoom: number },
-	target: THREE.Vector3,
-): CameraSnapshot {
-	return {
-		position: camera.position.toArray(),
-		target: target.toArray(),
-		zoom: camera.zoom,
-	};
-}
-
-function restoreCameraSnapshot(
-	camera: THREE.Camera & {
-		zoom: number;
-		updateProjectionMatrix(): void;
-	},
-	controls: CameraControls,
-	snapshot: CameraSnapshot,
-): void {
-	camera.position.fromArray(snapshot.position);
-	camera.zoom = snapshot.zoom;
-	controls.target.fromArray(snapshot.target);
-	camera.lookAt(controls.target);
-	camera.updateProjectionMatrix();
-	controls.update();
 }
 
 export class MatrixScene {
@@ -438,63 +385,63 @@ export class MatrixScene {
 		matrix: MatrixFor<D>,
 		vectors: readonly RenderVector<D>[],
 	): void {
-		const activeIds = new Set(vectors.map((vector) => vector.id));
-		for (const [id, visual] of this.vectorVisuals) {
-			if (activeIds.has(id)) continue;
-			this.root.remove(visual.arrow.group, visual.label);
-			disposeArrowVisual(visual.arrow);
-			disposeLabel(visual.label);
-			this.vectorVisuals.delete(id);
-		}
-
-		vectors.forEach((vector) => {
-			const transformed = applyMatrixToVector(
-				dimension,
-				matrix,
-				vector.coordinates,
-			);
-			const renderVector: Vec3 =
-				dimension === 2
-					? [transformed[0], transformed[1], 0]
-					: (transformed as Vec3);
-			let visual = this.vectorVisuals.get(vector.id);
-			if (!visual) {
+		reconcileOwnedVisuals(
+			this.vectorVisuals,
+			vectors,
+			(vector) => vector.id,
+			(vector) => {
 				const color = new THREE.Color(vector.color).getHex();
-				visual = {
+				const visual = {
 					arrow: this.createArrowVisual(color, 1),
 					label: createTextLabel(vector.label, color, LABEL_SIZE),
 					labelText: vector.label,
 					color: vector.color,
 				};
-				this.vectorVisuals.set(vector.id, visual);
 				this.root.add(visual.arrow.group, visual.label);
-			}
+				return visual;
+			},
+			(visual, vector) => {
+				const transformed = applyMatrixToVector(
+					dimension,
+					matrix,
+					vector.coordinates,
+				);
+				const renderVector: Vec3 =
+					dimension === 2
+						? [transformed[0], transformed[1], 0]
+						: (transformed as Vec3);
 
-			if (
-				visual.labelText !== vector.label ||
-				visual.color !== vector.color
-			) {
-				const color = new THREE.Color(vector.color).getHex();
-				updateTextLabel(visual.label, vector.label, color);
-				visual.arrow.basicMaterial.color.setHex(color);
-				visual.arrow.lambertMaterial.color.setHex(color);
-				visual.labelText = vector.label;
-				visual.color = vector.color;
-			}
+				if (
+					visual.labelText !== vector.label ||
+					visual.color !== vector.color
+				) {
+					const color = new THREE.Color(vector.color).getHex();
+					updateTextLabel(visual.label, vector.label, color);
+					visual.arrow.basicMaterial.color.setHex(color);
+					visual.arrow.lambertMaterial.color.setHex(color);
+					visual.labelText = vector.label;
+					visual.color = vector.color;
+				}
 
-			this.updateArrow(
-				visual.arrow,
-				renderVector,
-				dimension,
-				USER_ARROW_Z,
-			);
-			this.updateDirectionLabel(
-				visual.label,
-				dimension,
-				renderVector,
-				USER_ARROW_Z,
-			);
-		});
+				this.updateArrow(
+					visual.arrow,
+					renderVector,
+					dimension,
+					USER_ARROW_Z,
+				);
+				this.updateDirectionLabel(
+					visual.label,
+					dimension,
+					renderVector,
+					USER_ARROW_Z,
+				);
+			},
+			(visual) => {
+				this.root.remove(visual.arrow.group, visual.label);
+				disposeArrowVisual(visual.arrow);
+				disposeLabel(visual.label);
+			},
+		);
 	}
 
 	private updateDirectionLabel(
