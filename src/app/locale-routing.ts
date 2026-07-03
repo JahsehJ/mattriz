@@ -1,4 +1,4 @@
-import { localeMetadata, Locale } from "./i18n";
+import { localeMetadata, Locale } from "../i18n";
 
 export function getLocaleFromLanguageTag(languageTag: string): Locale {
 	const normalizedTag = languageTag.toLowerCase();

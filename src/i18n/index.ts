@@ -81,6 +81,9 @@ const en = {
 	reorder: "Reorder",
 	reorderDescription:
 		"Drag matrices or vector columns. Use each matrix slider to set its step duration.",
+	reorderInstructions:
+		"To reorder this item, press Alt plus Left Arrow or Alt plus Right Arrow.",
+	reorderedItem: "Moved {label} to position {position} of {total}.",
 	navigate: "Navigate",
 	navigateDescription:
 		"Drag to pan in 2D. In 3D, drag to orbit and right-drag to pan. Scroll or pinch to zoom.",
@@ -120,6 +123,10 @@ const en = {
 } as const;
 
 export type MessageKey = keyof typeof en;
+export type Translate = (
+	key: MessageKey,
+	values?: Record<string, string | number>,
+) => string;
 type Messages = Record<MessageKey, string>;
 
 const zhHant: Messages = {
@@ -191,6 +198,9 @@ const zhHant: Messages = {
 	reorder: "重新排序",
 	reorderDescription:
 		"拖曳矩陣或向量欄以重新排序。每個矩陣的滑桿可設定該步驟的時間。",
+	reorderInstructions:
+		"若要重新排序此項目，請按 Alt 加向左鍵或 Alt 加向右鍵。",
+	reorderedItem: "已將 {label} 移至第 {position} 個位置，共 {total} 個。",
 	navigate: "瀏覽",
 	navigateDescription:
 		"在 2D 中拖曳以平移；在 3D 中拖曳以環繞，按右鍵拖曳以平移。捲動或以雙指縮放。",

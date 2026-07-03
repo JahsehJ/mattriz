@@ -8,9 +8,9 @@ import {
 	Vec3,
 	VectorValues,
 	applyMatrixToVector,
-} from "./math";
-import { RenderState } from "./state";
-import type { CameraSnapshot, CameraSnapshots } from "./share";
+} from "../domain/math";
+import { RenderState } from "../domain/state";
+import type { CameraSnapshot, CameraSnapshots } from "../domain/share";
 
 const GRID_EXTENT = 240;
 const GRID_STEP = 1;
@@ -90,8 +90,13 @@ export class MatrixScene {
 	private activeControlsDimension: Dimension = 3;
 	private viewportWidth = 0;
 	private viewportHeight = 0;
+	private disposed = false;
+	private readonly handleControlsChange: () => void;
 
-	constructor(private readonly canvas: HTMLCanvasElement) {
+	constructor(
+		private readonly canvas: HTMLCanvasElement,
+		private readonly invalidate: () => void = () => {},
+	) {
 		this.renderer = new THREE.WebGLRenderer({
 			canvas,
 			antialias: true,
@@ -153,6 +158,15 @@ export class MatrixScene {
 		this.orthoControls.maxZoom = MAX_ORTHOGRAPHIC_ZOOM;
 		this.orthoControls.maxTargetRadius = MAX_PAN_RADIUS;
 		this.orthoControls.enabled = false;
+		this.handleControlsChange = () => this.invalidate();
+		this.perspectiveControls.addEventListener(
+			"change",
+			this.handleControlsChange,
+		);
+		this.orthoControls.addEventListener(
+			"change",
+			this.handleControlsChange,
+		);
 
 		this.resize();
 	}
@@ -202,25 +216,27 @@ export class MatrixScene {
 		);
 	}
 
-	render(state: RenderState): void {
-		this.resize();
+	render(state: RenderState): boolean {
+		if (this.disposed) return false;
+		const resized = this.resize();
 		this.dimension = state.dimension;
 		this.updateGrid(state.dimension, state.transform, state.showGrid);
 		this.updateAxisLabels(state.dimension, state.transform);
 		this.updateBasis(state.dimension, state.transform, state.showBasis);
 		this.updateVectors(state.dimension, state.transform, state.vectors);
-		this.updateControls(state.dimension);
+		const controlsChanged = this.updateControls(state.dimension);
 		this.renderer.render(
 			this.scene,
 			state.dimension === 2 ? this.orthoCamera : this.perspectiveCamera,
 		);
+		return resized || controlsChanged;
 	}
 
-	resize(): void {
+	resize(): boolean {
 		const width = Math.max(1, this.canvas.clientWidth);
 		const height = Math.max(1, this.canvas.clientHeight);
 		if (width === this.viewportWidth && height === this.viewportHeight)
-			return;
+			return false;
 		this.viewportWidth = width;
 		this.viewportHeight = height;
 
@@ -236,9 +252,47 @@ export class MatrixScene {
 		this.orthoCamera.top = span;
 		this.orthoCamera.bottom = -span;
 		this.orthoCamera.updateProjectionMatrix();
+		return true;
 	}
 
-	private updateControls(dimension: Dimension): void {
+	dispose(): void {
+		if (this.disposed) return;
+		this.disposed = true;
+		this.perspectiveControls.removeEventListener(
+			"change",
+			this.handleControlsChange,
+		);
+		this.orthoControls.removeEventListener(
+			"change",
+			this.handleControlsChange,
+		);
+		this.perspectiveControls.dispose();
+		this.orthoControls.dispose();
+
+		this.gridGroup.traverse((object) => {
+			if (!(object instanceof THREE.LineSegments)) return;
+			const line = object as THREE.LineSegments<
+				THREE.BufferGeometry,
+				THREE.Material
+			>;
+			line.geometry.dispose();
+			line.material.dispose();
+		});
+		this.axisLabels.children.forEach((label) => {
+			disposeLabel(label as THREE.Sprite);
+		});
+		this.basisArrows.forEach(disposeArrowVisual);
+		this.vectorVisuals.forEach((visual) => {
+			disposeArrowVisual(visual.arrow);
+			disposeLabel(visual.label);
+		});
+		this.vectorVisuals.clear();
+		this.arrowGeometries.shaft.dispose();
+		this.arrowGeometries.head.dispose();
+		this.renderer.dispose();
+	}
+
+	private updateControls(dimension: Dimension): boolean {
 		if (dimension !== this.activeControlsDimension) {
 			this.perspectiveControls.enabled = dimension === 3;
 			this.orthoControls.enabled = dimension === 2;
@@ -246,11 +300,10 @@ export class MatrixScene {
 		}
 
 		if (dimension === 2) {
-			this.orthoControls.update();
-			return;
+			return this.orthoControls.update();
 		}
 
-		this.perspectiveControls.update();
+		return this.perspectiveControls.update();
 	}
 
 	private getCameraSnapshot(

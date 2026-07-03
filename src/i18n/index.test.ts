@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { translate } from "./i18n";
+import { translate } from ".";
 
 describe("translations", () => {
 	it("translates interface copy into Traditional Chinese", () => {

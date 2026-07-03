@@ -60,9 +60,21 @@ button:disabled {
 button:focus-visible,
 input:focus-visible,
 select:focus-visible,
-a:focus-visible {
+a:focus-visible,
+.matrix-item:focus-visible,
+.vector-column-label:focus-visible {
 	outline: 2px solid #f4b740;
 	outline-offset: 2px;
+}
+
+.visually-hidden {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+	clip-path: inset(50%);
+	white-space: nowrap;
 }
 
 .shell {
