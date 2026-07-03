@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { loadEnv } from "vite";
 import localeMetadata from "../src/i18n/locale-metadata.json" with { type: "json" };
 
-const siteUrl = new URL(process.env.VITE_SITE_URL);
-const buildDirectory = process.env.BUILD_OUT_DIR ?? "dist";
+const env = loadEnv(process.argv[2] ?? "production", ".", "");
+const siteUrl = new URL(env.VITE_SITE_URL);
+const buildDirectory = env.BUILD_OUT_DIR ?? "dist";
 
 const expectedAlternates = new Map(
 	localeMetadata.map(({ code, path: localePath }) => [

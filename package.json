@@ -5,14 +5,16 @@
 	"type": "module",
 	"scripts": {
 		"dev": "node scripts/warn-development-env.mjs && vite --host 127.0.0.1",
-		"build": "tsc && vite build && node scripts/validate-hreflang.mjs",
+		"generate:sw-locales": "node scripts/generate-sw-locales.mjs",
+		"build": "npm run generate:sw-locales && tsc && vite build && node scripts/validate-hreflang.mjs",
+		"build:check": "npm run generate:sw-locales && tsc && vite build --mode development && node scripts/validate-hreflang.mjs development",
 		"test": "vitest run",
 		"test:coverage": "vitest run --coverage",
-		"test:e2e": "playwright test",
+		"test:e2e": "npm run build:check && playwright test",
 		"lint": "eslint .",
 		"format": "prettier --write .",
 		"format:check": "prettier --check .",
-		"check": "npm run lint && npm run format:check && npm run test:coverage && node scripts/check-build.mjs && npm run test:e2e"
+		"check": "npm run lint && npm run format:check && npm run test:coverage && npm run test:e2e"
 	},
 	"dependencies": {
 		"three": "0.185.0"

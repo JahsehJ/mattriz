@@ -5,6 +5,16 @@ export interface MoveResult {
 	index: number;
 }
 
+export function removeItem<T extends { id: string }>(
+	items: T[],
+	id: string,
+): MoveResult {
+	const index = items.findIndex((item) => item.id === id);
+	if (index < 0) return { changed: false, index };
+	items.splice(index, 1);
+	return { changed: true, index };
+}
+
 export function moveItemBy<T extends { id: string }>(
 	items: T[],
 	id: string,

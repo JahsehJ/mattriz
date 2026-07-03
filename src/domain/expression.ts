@@ -1,5 +1,7 @@
+import { MAX_EXPRESSION_LENGTH } from "./policy";
+
 export function evaluateExpression(source: string): number | null {
-	if (source.length > 64) return null;
+	if (source.length > MAX_EXPRESSION_LENGTH) return null;
 	try {
 		const parser = new ExpressionParser(source);
 		const value = parser.parse();

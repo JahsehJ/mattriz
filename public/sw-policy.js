@@ -1,7 +1,9 @@
+// @ts-check
 /* global URL */
 
+import { LOCALE_APP_SHELL_PATHS } from "./sw-locales.js";
+
 export const CACHE_PREFIX = "mattriz-";
-export const LOCALE_APP_SHELL_PATHS = ["zh-hant/"];
 export const STATIC_ASSET_PATHS = [
 	"favicon.svg",
 	"icon-192.png",
@@ -9,6 +11,10 @@ export const STATIC_ASSET_PATHS = [
 	"apple-touch-icon.png",
 ];
 
+/**
+ * @param {string | URL} scope
+ * @param {string | URL} workerUrl
+ */
 export function createServiceWorkerPolicy(scope, workerUrl) {
 	const appShellUrl = new URL("./", scope);
 	const appShellUrls = [
@@ -22,10 +28,10 @@ export function createServiceWorkerPolicy(scope, workerUrl) {
 		appShellUrl,
 		appShellUrls,
 		cacheName: `${CACHE_PREFIX}${releaseVersion}`,
-		isOwnedCache(name) {
+		isOwnedCache(/** @type {string} */ name) {
 			return name.startsWith(CACHE_PREFIX);
 		},
-		findNavigationShell(requestUrl) {
+		findNavigationShell(/** @type {string | URL} */ requestUrl) {
 			const url = new URL(requestUrl);
 			return (
 				appShellUrls.find(
@@ -38,6 +44,11 @@ export function createServiceWorkerPolicy(scope, workerUrl) {
 	};
 }
 
+/**
+ * @param {string[]} htmlDocuments
+ * @param {URL[]} appShellUrls
+ * @param {URL} appShellUrl
+ */
 export function collectStaticAssetUrls(
 	htmlDocuments,
 	appShellUrls,

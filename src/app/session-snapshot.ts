@@ -4,7 +4,17 @@ import {
 	type VectorFor,
 	cloneMatrix,
 } from "../domain/math";
-import { type Workspace, restoreWorkspaceState } from "../domain/workspace";
+import {
+	type MatrixNode,
+	type VectorNode,
+	type Workspace,
+	restoreWorkspaceState,
+} from "../domain/workspace";
+import type {
+	EvaluatedMatrix,
+	EvaluatedVector,
+} from "../domain/workspace-evaluation";
+import type { WorkspaceDocument } from "../domain/workspace-types";
 import { type AppState, createInitialState } from "./state";
 import { type AnimationMode } from "../domain/animation";
 import { type PlaybackState, restorePausedPlayback } from "./playback-state";
@@ -24,21 +34,16 @@ export interface CameraSnapshots {
 	3: CameraSnapshot;
 }
 
-export interface MatrixSnapshot {
-	label: string;
-	sources: string[];
-	durationMs: number;
-}
-
-export interface VectorSnapshot {
-	label: string;
-	sources: string[];
-	color: string;
-}
+export type MatrixSnapshot = Omit<MatrixNode<Dimension>, "id" | "dimension">;
+export type VectorSnapshot = Omit<VectorNode<Dimension>, "id" | "dimension">;
+type EvaluatedVectorSnapshot<D extends Dimension> = Omit<
+	EvaluatedVector<D>,
+	"id" | "coordinates"
+> & { values: VectorFor<D> };
 
 export interface WorkspaceEvaluationSnapshot<D extends Dimension> {
-	matrices: { label: string; values: MatrixFor<D>; durationMs: number }[];
-	vectors: { label: string; values: VectorFor<D>; color: string }[];
+	matrices: Omit<EvaluatedMatrix<D>, "id">[];
+	vectors: EvaluatedVectorSnapshot<D>[];
 }
 
 export interface WorkspaceSnapshot<D extends Dimension> {
@@ -128,28 +133,16 @@ function captureWorkspace<D extends Dimension>(
 	appliedTransform: MatrixFor<D>,
 ): WorkspaceSnapshot<D> {
 	return {
-		matrices: workspace.matrices.map((matrix) => ({
-			label: matrix.label,
-			sources: [...matrix.entries],
-			durationMs: matrix.durationMs,
-		})),
-		vectors: workspace.vectors.map((vector) => ({
-			label: vector.label,
-			sources: [...vector.coordinates],
-			color: vector.color,
-		})),
+		matrices: workspace.matrices.map(captureMatrix),
+		vectors: workspace.vectors.map(captureVector),
 		appliedTransform: cloneMatrix(appliedTransform),
 		lastValidEvaluation: {
-			matrices: workspace.lastValidEvaluation.matrices.map((matrix) => ({
-				label: matrix.label,
-				values: cloneMatrix(matrix.values),
-				durationMs: matrix.durationMs,
-			})),
-			vectors: workspace.lastValidEvaluation.vectors.map((vector) => ({
-				label: vector.label,
-				values: [...vector.coordinates] as VectorFor<D>,
-				color: vector.color,
-			})),
+			matrices: workspace.lastValidEvaluation.matrices.map(
+				captureEvaluatedMatrix,
+			),
+			vectors: workspace.lastValidEvaluation.vectors.map(
+				captureEvaluatedVector,
+			),
 		},
 	};
 }
@@ -160,20 +153,7 @@ function restoreWorkspace<D extends Dimension>(
 	createId: () => string,
 ): void {
 	const dimension = workspace.dimension;
-	const matrices = snapshot.matrices.map((matrix) => ({
-		id: createId(),
-		dimension,
-		label: matrix.label,
-		entries: [...matrix.sources],
-		durationMs: matrix.durationMs,
-	}));
-	const vectors = snapshot.vectors.map((vector) => ({
-		id: createId(),
-		dimension,
-		label: vector.label,
-		coordinates: [...vector.sources],
-		color: vector.color,
-	}));
+	const document = snapshotToDocument(dimension, snapshot, createId);
 	if (
 		snapshot.appliedTransform.length !== dimension ** 2 ||
 		snapshot.appliedTransform.some(
@@ -183,35 +163,131 @@ function restoreWorkspace<D extends Dimension>(
 		) ||
 		!restoreWorkspaceState(
 			workspace,
-			{ dimension, matrices, vectors },
-			{
+			document,
+			evaluationToDocument(
 				dimension,
-				matrices: snapshot.lastValidEvaluation.matrices.map(
-					(matrix, index) => ({
-						id:
-							matrices[index]?.label === matrix.label
-								? matrices[index].id
-								: `evaluation-matrix-${index}`,
-						dimension,
-						label: matrix.label,
-						entries: matrix.values.map(String),
-						durationMs: matrix.durationMs,
-					}),
-				),
-				vectors: snapshot.lastValidEvaluation.vectors.map(
-					(vector, index) => ({
-						id:
-							vectors[index]?.label === vector.label
-								? vectors[index].id
-								: `evaluation-vector-${index}`,
-						dimension,
-						label: vector.label,
-						coordinates: vector.values.map(String),
-						color: vector.color,
-					}),
-				),
-			},
+				snapshot.lastValidEvaluation,
+				document,
+			),
 		)
 	)
 		throw new Error("Invalid workspace snapshot");
+}
+
+function snapshotToDocument<D extends Dimension>(
+	dimension: D,
+	snapshot: WorkspaceSnapshot<D>,
+	createId: () => string,
+): WorkspaceDocument<D> {
+	return {
+		dimension,
+		matrices: snapshot.matrices.map((matrix) =>
+			restoreMatrix(dimension, matrix, createId),
+		),
+		vectors: snapshot.vectors.map((vector) =>
+			restoreVector(dimension, vector, createId),
+		),
+	};
+}
+
+function evaluationToDocument<D extends Dimension>(
+	dimension: D,
+	evaluation: WorkspaceEvaluationSnapshot<D>,
+	document: WorkspaceDocument<D>,
+): WorkspaceDocument<D> {
+	const matchingId = (
+		kind: "matrix" | "vector",
+		index: number,
+		label: string,
+	): string => {
+		const nodes = kind === "matrix" ? document.matrices : document.vectors;
+		return nodes[index]?.label === label
+			? nodes[index].id
+			: `evaluation-${kind}-${index}`;
+	};
+	return {
+		dimension,
+		matrices: evaluation.matrices.map((matrix, index) => ({
+			id: matchingId("matrix", index, matrix.label),
+			dimension,
+			label: matrix.label,
+			entries: matrix.values.map(String),
+			durationMs: matrix.durationMs,
+		})),
+		vectors: evaluation.vectors.map((vector, index) => ({
+			id: matchingId("vector", index, vector.label),
+			dimension,
+			label: vector.label,
+			coordinates: vector.values.map(String),
+			color: vector.color,
+		})),
+	};
+}
+
+function captureMatrix<D extends Dimension>(
+	matrix: MatrixNode<D>,
+): MatrixSnapshot {
+	return {
+		label: matrix.label,
+		entries: [...matrix.entries],
+		durationMs: matrix.durationMs,
+	};
+}
+
+function captureVector<D extends Dimension>(
+	vector: VectorNode<D>,
+): VectorSnapshot {
+	return {
+		label: vector.label,
+		coordinates: [...vector.coordinates],
+		color: vector.color,
+	};
+}
+
+function captureEvaluatedMatrix<D extends Dimension>(
+	matrix: EvaluatedMatrix<D>,
+): Omit<EvaluatedMatrix<D>, "id"> {
+	return {
+		label: matrix.label,
+		values: cloneMatrix(matrix.values),
+		durationMs: matrix.durationMs,
+	};
+}
+
+function captureEvaluatedVector<D extends Dimension>(
+	vector: EvaluatedVector<D>,
+): EvaluatedVectorSnapshot<D> {
+	return {
+		label: vector.label,
+		values: [...vector.coordinates] as VectorFor<D>,
+		color: vector.color,
+	};
+}
+
+function restoreMatrix<D extends Dimension>(
+	dimension: D,
+	matrix: MatrixSnapshot,
+	createId: () => string,
+): MatrixNode<D> {
+	return {
+		id: createId(),
+		dimension,
+		label: matrix.label,
+		entries: [...matrix.entries],
+		durationMs: matrix.durationMs,
+	};
+}
+
+function restoreVector<D extends Dimension>(
+	dimension: D,
+	vector: VectorSnapshot,
+	createId: () => string,
+): VectorNode<D> {
+	return {
+		id: createId(),
+		dimension,
+		label: vector.label,
+		coordinates: [...vector.coordinates],
+		color: vector.color,
+	};
 }

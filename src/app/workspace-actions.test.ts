@@ -5,11 +5,26 @@ import {
 	moveItemTo,
 	nextMatrixLabel,
 	nextVectorLabel,
+	removeItem,
 } from "./workspace-actions";
 
 const items = () => [{ id: "a" }, { id: "b" }, { id: "c" }];
 
 describe("workspace reordering", () => {
+	it("removes an item by id", () => {
+		const values = items();
+
+		expect(removeItem(values, "b")).toEqual({
+			changed: true,
+			index: 1,
+		});
+		expect(removeItem(values, "missing")).toEqual({
+			changed: false,
+			index: -1,
+		});
+		expect(values.map(({ id }) => id)).toEqual(["a", "c"]);
+	});
+
 	it("moves an item by one position", () => {
 		const values = items();
 

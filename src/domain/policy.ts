@@ -1,4 +1,5 @@
 export const MAX_WORKSPACE_NODES = 64;
+export const MAX_EXPRESSION_LENGTH = 64;
 export const MAX_ABSOLUTE_INPUT_VALUE = 100;
 
 export const MIN_MATRIX_DURATION_MS = 100;

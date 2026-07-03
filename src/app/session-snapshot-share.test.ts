@@ -26,7 +26,7 @@ describe("workspace sharing", () => {
 		const decoded = await decodeShareSession(
 			await encodeShareSession(snapshot),
 		);
-		expect(decoded.workspaces[2].matrices[0].sources[0]).toBe("2 + 3");
+		expect(decoded.workspaces[2].matrices[0].entries[0]).toBe("2 + 3");
 		expect(
 			decoded.workspaces[2].lastValidEvaluation.matrices[0].values[0],
 		).toBe(5);
@@ -42,8 +42,8 @@ describe("workspace sharing", () => {
 		const decoded = await decodeShareSession(
 			await encodeShareSession(captureSessionSnapshot(state, 0, cameras)),
 		);
-		expect(decoded.workspaces[2].matrices[0].sources[0]).toBe("1/");
-		expect(decoded.workspaces[2].vectors[0].sources[0]).toBe("999999");
+		expect(decoded.workspaces[2].matrices[0].entries[0]).toBe("1/");
+		expect(decoded.workspaces[2].vectors[0].coordinates[0]).toBe("999999");
 		expect(
 			decoded.workspaces[2].lastValidEvaluation.matrices[0].values,
 		).toEqual(stale.matrices[0].values);
@@ -74,6 +74,75 @@ describe("workspace sharing", () => {
 		).toBe(5);
 	});
 
+	it.each([
+		{ version: 1, showGrid: true },
+		{ version: 2, showGrid: false },
+	])("upgrades version $version payloads", async ({ version, showGrid }) => {
+		const state = createInitialState();
+		state.workspaces[2].matrices[0].entries[0] = "2 + 3";
+		recomputeWorkspace(state.workspaces[2]);
+		const snapshot = captureSessionSnapshot(state, 250, cameras);
+		const workspace = (dimension: 2 | 3) => {
+			const item = snapshot.workspaces[dimension];
+			return [
+				item.matrices.map((matrix, index) => [
+					matrix.label,
+					matrix.entries,
+					item.lastValidEvaluation.matrices[index].values,
+					matrix.durationMs,
+				]),
+				item.vectors.map((vector, index) => [
+					vector.label,
+					vector.coordinates,
+					item.lastValidEvaluation.vectors[index].values,
+					vector.color,
+				]),
+				item.appliedTransform,
+			];
+		};
+		const camera = (dimension: 2 | 3) => {
+			const item = snapshot.cameras[dimension];
+			return [item.position, item.target, item.zoom];
+		};
+		const sharedFields = [
+			snapshot.activeDimension,
+			snapshot.showBasis ? 1 : 0,
+		];
+		const payload =
+			version === 1
+				? [
+						1,
+						...sharedFields,
+						0,
+						0,
+						snapshot.elapsedMs,
+						workspace(2),
+						workspace(3),
+						camera(2),
+						camera(3),
+					]
+				: [
+						2,
+						...sharedFields,
+						0,
+						0,
+						0,
+						snapshot.elapsedMs,
+						workspace(2),
+						workspace(3),
+						camera(2),
+						camera(3),
+					];
+
+		const decoded = await decodeShareSession(asPlainPayload(payload));
+
+		expect(decoded.showGrid).toBe(showGrid);
+		expect(decoded.workspaces[2].matrices[0].entries[0]).toBe("2 + 3");
+		expect(
+			decoded.workspaces[2].lastValidEvaluation.matrices[0].values[0],
+		).toBe(5);
+	});
+
 	it("keeps an unrenderable animated session idle", () => {
 		const snapshot = captureSessionSnapshot(
 			createInitialState(),
@@ -87,7 +156,7 @@ describe("workspace sharing", () => {
 			(_, index) => ({
 				...matrix,
 				label: `A${index}`,
-				sources: ["100", "0", "0", "0", "100", "0", "0", "0", "100"],
+				entries: ["100", "0", "0", "0", "100", "0", "0", "0", "100"],
 			}),
 		);
 
@@ -101,3 +170,13 @@ describe("workspace sharing", () => {
 		await expect(decodeShareSession("1j%%%")).rejects.toThrow();
 	});
 });
+
+function asPlainPayload(value: unknown): string {
+	const bytes = new TextEncoder().encode(JSON.stringify(value));
+	let binary = "";
+	for (const byte of bytes) binary += String.fromCharCode(byte);
+	return `1j${btoa(binary)
+		.replace(/\+/g, "-")
+		.replace(/\//g, "_")
+		.replace(/=+$/, "")}`;
+}

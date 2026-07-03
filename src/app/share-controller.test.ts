@@ -4,10 +4,7 @@ import { ShareController } from "./share-controller";
 
 const encodeShareSession = vi.hoisted(() => vi.fn());
 
-vi.mock("../infrastructure/session-codec", async (importOriginal) => ({
-	...(await importOriginal<
-		typeof import("../infrastructure/session-codec")
-	>()),
+vi.mock("../infrastructure/session-codec", () => ({
 	encodeShareSession,
 }));
 

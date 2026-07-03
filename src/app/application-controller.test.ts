@@ -69,20 +69,20 @@ describe("application controller", () => {
 		const originalMatrix = workspace.matrices[0];
 		const originalVector = workspace.vectors[0];
 
-		controller.addMatrix();
-		controller.addVector();
-		controller.moveMatrix(
+		controller.editor.addMatrix();
+		controller.editor.addVector();
+		controller.editor.moveMatrix(
 			originalMatrix.id,
 			workspace.matrices[0].id,
 			"before",
 		);
-		controller.moveVector(
+		controller.editor.moveVector(
 			workspace.vectors[1].id,
 			originalVector.id,
 			"before",
 		);
-		controller.deleteMatrix(originalMatrix.id);
-		controller.deleteVector(originalVector.id);
+		controller.editor.deleteMatrix(originalMatrix.id);
+		controller.editor.deleteVector(originalVector.id);
 
 		expect(workspace.matrices.map(({ label }) => label)).toEqual(["B"]);
 		expect(workspace.vectors.map(({ label }) => label)).toEqual(["v2"]);
@@ -90,11 +90,11 @@ describe("application controller", () => {
 
 	it("assigns colors from vector labels after gaps are reused", () => {
 		const { controller, workspace } = setup();
-		controller.addVector();
+		controller.editor.addVector();
 		const [v1, v2] = workspace.vectors;
-		controller.deleteVector(v1.id);
+		controller.editor.deleteVector(v1.id);
 
-		controller.addVector();
+		controller.editor.addVector();
 
 		expect(workspace.vectors.map(({ label }) => label)).toEqual([
 			"v2",
@@ -116,8 +116,8 @@ describe("application controller", () => {
 			value: "9999",
 		} as unknown as HTMLInputElement;
 
-		controller.handleInput(matrixInput);
-		controller.handleInput(durationInput);
+		controller.inputs.handleInput(matrixInput);
+		controller.inputs.handleInput(durationInput);
 
 		expect(workspace.lastValidEvaluation.matrices[0].values[0]).toBe(2);
 		expect(workspace.matrices[0].durationMs).toBe(3000);
@@ -132,9 +132,7 @@ describe("application controller", () => {
 				: null,
 		);
 		const updatePresetAvailability = vi.spyOn(
-			Reflect.get(controller, "equationRenderer") as {
-				updatePresetAvailability(): void;
-			},
+			controller.equations,
 			"updatePresetAvailability",
 		);
 		render.mockRestore();
@@ -146,7 +144,7 @@ describe("application controller", () => {
 
 	it("rerenders result labels when vector order changes during invalid input", () => {
 		const { controller, workspace, render, setRenderedResultIds } = setup();
-		controller.addVector();
+		controller.editor.addVector();
 		const originalOrder = workspace.vectors.map((vector) => vector.id);
 		setRenderedResultIds(originalOrder);
 		const matrixInput = {
@@ -159,11 +157,15 @@ describe("application controller", () => {
 			value: "invalid",
 		} as unknown as HTMLInputElement;
 
-		controller.handleInput(matrixInput);
-		controller.moveVector(originalOrder[1], originalOrder[0], "before");
+		controller.inputs.handleInput(matrixInput);
+		controller.editor.moveVector(
+			originalOrder[1],
+			originalOrder[0],
+			"before",
+		);
 		render.mockClear();
 		matrixInput.value = "2";
-		controller.handleInput(matrixInput);
+		controller.inputs.handleInput(matrixInput);
 
 		expect(
 			workspace.lastValidEvaluation.vectors.map(({ id }) => id),
@@ -177,8 +179,8 @@ describe("application controller", () => {
 		recomputeWorkspace(workspace);
 		const vectorCount = workspace.vectors.length;
 
-		controller.addEigenbasis();
-		controller.addRepresentativeEigenvector();
+		controller.editor.addEigenbasis();
+		controller.editor.addRepresentativeEigenvector();
 
 		expect(workspace.vectors).toHaveLength(vectorCount);
 	});
@@ -189,7 +191,7 @@ describe("application controller", () => {
 		recomputeWorkspace(workspace);
 		const vectorCount = workspace.vectors.length;
 
-		controller.addRepresentativeEigenvector();
+		controller.editor.addRepresentativeEigenvector();
 
 		expect(workspace.vectors).toHaveLength(vectorCount + 1);
 	});

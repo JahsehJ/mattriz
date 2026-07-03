@@ -81,10 +81,11 @@ const shareController = new ShareController({
 });
 const dragController = new DragController(matrixStack, {
 	moveMatrix: (id, targetId, side) =>
-		appController.moveMatrix(id, targetId, side),
+		appController.editor.moveMatrix(id, targetId, side),
 	moveVector: (id, targetId, side) =>
-		appController.moveVector(id, targetId, side),
-	createVectorPreview: (id) => appController.createVectorPreview(id),
+		appController.editor.moveVector(id, targetId, side),
+	createVectorPreview: (id) =>
+		appController.equations.createVectorDragPreview(id),
 });
 
 root.addEventListener("click", (event) => {
@@ -115,13 +116,13 @@ root.addEventListener("click", (event) => {
 
 	if (!actionButton) return;
 	const action = actionButton.dataset.action;
-	if (action === "add-matrix") appController.addMatrix();
-	if (action === "add-vector") appController.addVector();
+	if (action === "add-matrix") appController.editor.addMatrix();
+	if (action === "add-vector") appController.editor.addVector();
 	if (action === "add-matrix-preset" && actionButton.dataset.presetId)
-		appController.addMatrixPreset(actionButton.dataset.presetId);
-	if (action === "add-eigenbasis") appController.addEigenbasis();
+		appController.editor.addMatrixPreset(actionButton.dataset.presetId);
+	if (action === "add-eigenbasis") appController.editor.addEigenbasis();
 	if (action === "add-eigenvector")
-		appController.addRepresentativeEigenvector();
+		appController.editor.addRepresentativeEigenvector();
 	if (action === "play") appController.togglePlayback();
 	if (action === "reset") appController.resetTransform();
 	if (action === "reset-view") resetView();
@@ -134,9 +135,9 @@ root.addEventListener("click", (event) => {
 	if (action === "close-about") aboutDialog.close();
 	if (action === "close-share-error") shareErrorDialog.close();
 	if (action === "delete-matrix" && actionButton.dataset.id)
-		appController.deleteMatrix(actionButton.dataset.id);
+		appController.editor.deleteMatrix(actionButton.dataset.id);
 	if (action === "delete-vector" && actionButton.dataset.id)
-		appController.deleteVector(actionButton.dataset.id);
+		appController.editor.deleteVector(actionButton.dataset.id);
 });
 
 document.addEventListener("click", (event) => {
@@ -216,7 +217,7 @@ root.addEventListener(
 		);
 		if (!menu.open) return;
 		if (menu.querySelector("[data-action='add-eigenvector']"))
-			appController.updateVectorPresetAvailability();
+			appController.equations.updatePresetAvailability();
 		root.querySelectorAll<HTMLDetailsElement>(".popup-menu[open]").forEach(
 			(other) => {
 				if (other !== menu) other.open = false;
@@ -228,7 +229,7 @@ root.addEventListener(
 
 root.addEventListener("input", (event) => {
 	if (event.target instanceof HTMLInputElement)
-		appController.handleInput(event.target);
+		appController.inputs.handleInput(event.target);
 });
 
 root.addEventListener("change", (event) => {

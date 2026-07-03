@@ -5,16 +5,18 @@ export default defineConfig({
 		include: ["src/**/*.test.ts"],
 		coverage: {
 			provider: "v8",
-			include: ["src/**/*.ts", "public/*.js"],
-			// Browser tests exercise the application bootstrap, orchestration, and
-			// service worker. These are runtime entry points rather than isolated units.
-			exclude: [
-				"src/**/*.test.ts",
-				"src/vite-env.d.ts",
-				"src/main.ts",
-				"src/app/application-controller.ts",
-				"public/sw.js",
+			// Keep the coverage boundary to modules exercised by unit tests.
+			// Browser-only entry points are covered by Playwright instead.
+			include: [
+				"src/app/**/*.ts",
+				"src/domain/**/*.ts",
+				"src/i18n/**/*.ts",
+				"src/infrastructure/**/*.ts",
+				"src/rendering/**/*.ts",
+				"src/ui/**/*.ts",
+				"public/sw-policy.js",
 			],
+			exclude: ["src/ui/scene.ts"],
 			reporter: ["text", "html"],
 			thresholds: {
 				statements: 68,

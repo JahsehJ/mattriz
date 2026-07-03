@@ -30,12 +30,8 @@ export default defineConfig({
 		},
 	],
 	webServer: {
-		command:
-			"npm run build && npx vite preview --host 127.0.0.1 --port 4173",
-		env: {
-			VITE_SITE_URL: `${baseURL}/`,
-		},
+		command: "npx vite preview --host 127.0.0.1 --port 4173",
 		url: baseURL,
-		reuseExistingServer: !process.env.CI,
+		reuseExistingServer: false,
 	},
 });

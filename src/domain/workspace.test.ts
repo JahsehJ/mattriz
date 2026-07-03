@@ -110,6 +110,21 @@ describe("workspace lifecycle", () => {
 		expect(workspace.matrices).toEqual(originalMatrices);
 	});
 
+	it.each([undefined, 42])(
+		"rejects a restored workspace with an invalid node ID (%s)",
+		(id) => {
+			const workspace = createWorkspace(2);
+			const invalid = {
+				...workspace,
+				matrices: [{ ...workspace.matrices[0], id }],
+			} as unknown as Workspace<2>;
+
+			expect(restoreWorkspaceState(workspace, invalid, workspace)).toBe(
+				false,
+			);
+		},
+	);
+
 	it("rejects restored workspaces with mismatched dimensions or no valid fallback", () => {
 		const workspace = createWorkspace(2);
 		const wrongDimension = createWorkspace(3);

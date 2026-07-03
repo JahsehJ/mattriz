@@ -1,27 +1,8 @@
-import {
-	type Mat2,
-	type Mat3,
-	analyzeRealEigenbasis,
-	analyzeRepresentativeRealEigenvector,
-	identityMatrix,
-} from "../domain/math";
-import { getMatrixPresets } from "../domain/presets";
-import {
-	areWorkspaceMatricesValid,
-	canAddWorkspaceNodes,
-	createMatrixNode,
-	createVectorNode,
-	recomputeWorkspace,
-} from "../domain/workspace";
+import { type Mat2, type Mat3, identityMatrix } from "../domain/math";
+import { MAX_EXPRESSION_LENGTH } from "../domain/policy";
 import { type AppState, getWorkspace } from "./state";
 import type { MessageKey, Translate } from "../i18n";
-import {
-	type MoveDirection,
-	moveItemBy,
-	moveItemTo,
-	nextMatrixLabel,
-	nextVectorLabel,
-} from "./workspace-actions";
+import { type MoveDirection } from "./workspace-actions";
 import {
 	getAnimationDuration,
 	getAnimationProgress,
@@ -39,15 +20,7 @@ import {
 } from "./playback-state";
 import { EquationRenderer } from "../ui/equation-renderer";
 import { EquationInputController } from "./equation-input-controller";
-
-const VECTOR_COLORS = [
-	"#f4b740",
-	"#5bd8a6",
-	"#ef6f6c",
-	"#8fb4ff",
-	"#d989ff",
-	"#5ed5e8",
-];
+import { WorkspaceEditor } from "./workspace-editor";
 
 interface ApplicationControllerOptions {
 	getState(): AppState;
@@ -57,8 +30,9 @@ interface ApplicationControllerOptions {
 }
 
 export class ApplicationController {
-	private readonly equationRenderer: EquationRenderer;
-	private readonly equationInputController: EquationInputController;
+	readonly equations: EquationRenderer;
+	readonly inputs: EquationInputController;
+	readonly editor: WorkspaceEditor;
 
 	constructor(
 		private readonly root: HTMLElement,
@@ -67,16 +41,21 @@ export class ApplicationController {
 		private readonly t: Translate,
 		private readonly options: ApplicationControllerOptions,
 	) {
-		this.equationRenderer = new EquationRenderer({
+		this.equations = new EquationRenderer({
 			root,
 			t,
 			getWorkspace: () => this.workspace,
-			maxInputLength: 64,
+			maxInputLength: MAX_EXPRESSION_LENGTH,
 		});
-		this.equationInputController = new EquationInputController(stack, t, {
+		this.inputs = new EquationInputController(stack, t, {
 			getState: () => options.getState(),
 			getWorkspace: () => this.workspace,
 			render: (renderStack) => this.render(renderStack),
+		});
+		this.editor = new WorkspaceEditor({
+			getWorkspace: () => this.workspace,
+			createId: () => options.createId(),
+			commit: () => this.resetPlayback(),
 		});
 	}
 
@@ -102,13 +81,13 @@ export class ApplicationController {
 		this.animationMode.value = state.animation.mode;
 
 		if (renderStack) {
-			this.stack.innerHTML = this.equationRenderer.render();
+			this.stack.innerHTML = this.equations.render();
 		} else if (
 			this.root.querySelector(
 				".preset-menu[open] [data-action='add-eigenvector']",
 			)
 		) {
-			this.equationRenderer.updatePresetAvailability();
+			this.equations.updatePresetAvailability();
 		}
 		this.updateAnimationHighlight(this.options.now());
 		this.options.scheduleRender();
@@ -219,185 +198,18 @@ export class ApplicationController {
 		return true;
 	}
 
-	createVectorPreview(vectorId: string): HTMLElement {
-		return this.equationRenderer.createVectorDragPreview(vectorId);
-	}
-
-	updateVectorPresetAvailability(): void {
-		this.equationRenderer.updatePresetAvailability();
-	}
-
-	addMatrix(): void {
-		const workspace = this.workspace;
-		if (!canAddWorkspaceNodes(workspace, "matrices")) return;
-		this.mutateWorkspace(() => {
-			workspace.matrices.unshift(
-				createMatrixNode(
-					workspace.dimension,
-					nextMatrixLabel(
-						workspace.matrices.map((matrix) => matrix.label),
-					),
-					undefined,
-					undefined,
-					this.options.createId(),
-				),
-			);
-		});
-	}
-
-	addVector(): void {
-		const workspace = this.workspace;
-		if (!canAddWorkspaceNodes(workspace, "vectors")) return;
-		const label = nextVectorLabel(
-			workspace.vectors.map((vector) => vector.label),
-		);
-		this.mutateWorkspace(() => {
-			workspace.vectors.push(
-				createVectorNode(
-					workspace.dimension,
-					label,
-					vectorColorForLabel(label),
-					undefined,
-					undefined,
-					this.options.createId(),
-				),
-			);
-		});
-	}
-
-	addMatrixPreset(presetId: string): void {
-		const workspace = this.workspace;
-		if (!canAddWorkspaceNodes(workspace, "matrices")) return;
-		const preset = getMatrixPresets(workspace.dimension).find(
-			(item) => item.id === presetId,
-		);
-		if (!preset) return;
-		this.mutateWorkspace(() => {
-			workspace.matrices.unshift(
-				createMatrixNode(
-					workspace.dimension,
-					nextMatrixLabel(
-						workspace.matrices.map((matrix) => matrix.label),
-					),
-					preset.values,
-					preset.draftValues,
-					this.options.createId(),
-				),
-			);
-		});
-	}
-
-	addEigenbasis(): void {
-		const workspace = this.workspace;
-		if (!areWorkspaceMatricesValid(workspace)) return;
-		const result = analyzeRealEigenbasis(
-			workspace.dimension,
-			workspace.lastValidEvaluation.totalTransform,
-		);
-		const basis = result.kind === "basis" ? result.vectors : null;
-		if (!basis || !canAddWorkspaceNodes(workspace, "vectors", basis.length))
-			return;
-		const vectors = [...workspace.vectors];
-		for (const components of basis) {
-			const label = nextVectorLabel(
-				vectors.map((vector) => vector.label),
-			);
-			vectors.push(
-				createVectorNode(
-					workspace.dimension,
-					label,
-					vectorColorForLabel(label),
-					components,
-					components.map(formatInputNumber),
-					this.options.createId(),
-				),
-			);
-		}
-		this.mutateWorkspace(() => {
-			workspace.vectors = vectors;
-		});
-	}
-
-	addRepresentativeEigenvector(): void {
-		const workspace = this.workspace;
-		if (!areWorkspaceMatricesValid(workspace)) return;
-		if (!canAddWorkspaceNodes(workspace, "vectors")) return;
-		const result = analyzeRepresentativeRealEigenvector(
-			workspace.dimension,
-			workspace.lastValidEvaluation.totalTransform,
-		);
-		if (result.kind !== "vector") return;
-		const vector = result.vector;
-		const label = nextVectorLabel(
-			workspace.vectors.map((item) => item.label),
-		);
-		const vectorNode = createVectorNode(
-			workspace.dimension,
-			label,
-			vectorColorForLabel(label),
-			vector,
-			vector.map(formatInputNumber),
-			this.options.createId(),
-		);
-		this.mutateWorkspace(() => {
-			workspace.vectors.push(vectorNode);
-		});
-	}
-
-	deleteMatrix(id: string): void {
-		const workspace = this.workspace;
-		const index = workspace.matrices.findIndex(
-			(matrix) => matrix.id === id,
-		);
-		if (index === -1) return;
-		this.mutateWorkspace(() => {
-			workspace.matrices.splice(index, 1);
-		});
-	}
-
-	deleteVector(id: string): void {
-		const workspace = this.workspace;
-		const index = workspace.vectors.findIndex((vector) => vector.id === id);
-		if (index === -1) return;
-		this.mutateWorkspace(() => {
-			workspace.vectors.splice(index, 1);
-		});
-	}
-
-	moveMatrix(id: string, targetId: string, side: "before" | "after"): void {
-		const workspace = this.workspace;
-		const matrices = [...workspace.matrices];
-		if (!moveItemTo(matrices, id, targetId, side).changed) return;
-		this.mutateWorkspace(() => {
-			workspace.matrices = matrices;
-		});
-	}
-
-	moveVector(id: string, targetId: string, side: "before" | "after"): void {
-		const workspace = this.workspace;
-		const vectors = [...workspace.vectors];
-		if (!moveItemTo(vectors, id, targetId, side).changed) return;
-		this.mutateWorkspace(() => {
-			workspace.vectors = vectors;
-		});
-	}
-
 	moveFocusedItem(element: HTMLElement, direction: MoveDirection): void {
 		const matrixId = element.dataset.matrixId;
 		const vectorId = element.dataset.vectorColumnId;
 		const id = matrixId ?? vectorId;
 		if (!id) return;
 		const workspace = this.workspace;
-		const matrices = [...workspace.matrices];
-		const vectors = [...workspace.vectors];
-		const result = matrixId
-			? moveItemBy(matrices, matrixId, direction)
-			: moveItemBy(vectors, id, direction);
+		const result = this.editor.moveItem(
+			id,
+			matrixId ? "matrix" : "vector",
+			direction,
+		);
 		if (!result.changed) return;
-		this.mutateWorkspace(() => {
-			if (matrixId) workspace.matrices = matrices;
-			else workspace.vectors = vectors;
-		});
 		const items = matrixId ? workspace.matrices : workspace.vectors;
 		const label = items[result.index].label;
 
@@ -417,42 +229,9 @@ export class ApplicationController {
 		}
 	}
 
-	handleInput(input: HTMLInputElement): void {
-		this.equationInputController.handleInput(input);
-	}
-
-	private mutateWorkspace(mutate: () => void): void {
-		mutate();
-		recomputeWorkspace(this.workspace);
-		const state = this.options.getState();
-		state.animation = resetPlaybackState(state.animation);
-		this.render();
-	}
-
 	private get workspace() {
 		return getWorkspace(this.options.getState());
 	}
-}
-
-function vectorColorForLabel(label: string): string {
-	const number = Number(label.slice(1));
-	const index =
-		Number.isInteger(number) && number > 0 ? number - 1 : hashString(label);
-	return VECTOR_COLORS[index % VECTOR_COLORS.length];
-}
-
-function hashString(value: string): number {
-	let hash = 0;
-	for (const character of value)
-		hash = (hash * 31 + character.codePointAt(0)!) >>> 0;
-	return hash;
-}
-
-function formatInputNumber(value: number): string {
-	const rounded = Math.abs(value) < 0.0000000001 ? 0 : value;
-	return Number.isInteger(rounded)
-		? String(rounded)
-		: Number(rounded.toPrecision(8)).toString();
 }
 
 function setHighlight(

@@ -1,5 +1,5 @@
 import type { Dimension, MatrixFor, VectorFor } from "../domain/math";
-import { MAX_WORKSPACE_NODES } from "../domain/policy";
+import { MAX_EXPRESSION_LENGTH, MAX_WORKSPACE_NODES } from "../domain/policy";
 import type { AnimationMode } from "../domain/animation";
 import {
 	MAX_ABSOLUTE_INPUT_VALUE,
@@ -13,14 +13,17 @@ import type {
 	SessionSnapshot,
 	WorkspaceSnapshot,
 } from "../app/session-snapshot";
+import {
+	decodeSharePayload,
+	encodeSharePayload,
+} from "./share-payload-transport";
+export { MAX_SHARE_FRAGMENT_LENGTH } from "./share-payload-transport";
 export type {
 	CameraSnapshot,
 	CameraSnapshots,
 	SessionSnapshot,
 } from "../app/session-snapshot";
 
-export const MAX_SHARE_FRAGMENT_LENGTH = 32_768;
-const MAX_DECODED_BYTES = 262_144;
 const MAX_CAMERA_VALUE = 1_000;
 const MATRIX_LABEL = /^[A-Z]{1,2}$/;
 const VECTOR_LABEL = /^v[1-9][0-9]{0,2}$/;
@@ -41,44 +44,13 @@ const CURRENT_SHARE_PAYLOAD_VERSION: SharePayloadVersion = 3;
 export async function encodeShareSession(
 	session: SessionSnapshot,
 ): Promise<string> {
-	const serialized = encodeCurrentVersion(session);
-	const json = JSON.stringify(serialized);
-	const bytes = new TextEncoder().encode(json);
-	const plain = `1j${toBase64Url(bytes)}`;
-	if (typeof CompressionStream === "undefined") return assertFits(plain);
-
-	const compressed = await transformBytes(
-		bytes,
-		new CompressionStream("gzip"),
-	);
-	const gzip = `1g${toBase64Url(compressed)}`;
-	return assertFits(gzip.length < plain.length ? gzip : plain);
+	return encodeSharePayload(encodeCurrentVersion(session));
 }
 
 export async function decodeShareSession(
 	fragment: string,
 ): Promise<SessionSnapshot> {
-	if (fragment.length > MAX_SHARE_FRAGMENT_LENGTH)
-		throw new Error("Share payload is too large");
-	if (!fragment.startsWith("1j") && !fragment.startsWith("1g"))
-		throw new Error("Unsupported share payload");
-
-	const encoded = fragment.slice(2);
-	const source = fromBase64Url(encoded);
-	const bytes =
-		fragment[1] === "g" ? await decompressBounded(source) : source;
-	if (bytes.byteLength > MAX_DECODED_BYTES)
-		throw new Error("Share payload is too large");
-
-	let value: unknown;
-	try {
-		value = JSON.parse(
-			new TextDecoder("utf-8", { fatal: true }).decode(bytes),
-		);
-	} catch {
-		throw new Error("Malformed share payload");
-	}
-	return decodeVersionedTuple(value);
+	return decodeVersionedTuple(await decodeSharePayload(fragment));
 }
 
 function encodeCurrentVersion(session: SessionSnapshot): JsonValue {
@@ -89,28 +61,12 @@ function encodeVersion3(session: SessionSnapshot): JsonValue {
 	const workspace = (dimension: Dimension): JsonValue => {
 		const item = session.workspaces[dimension];
 		return [
-			item.matrices.map((matrix) => [
-				matrix.label,
-				matrix.sources,
-				matrix.durationMs,
-			]),
-			item.vectors.map((vector) => [
-				vector.label,
-				vector.sources,
-				vector.color,
-			]),
+			item.matrices.map(encodeMatrix),
+			item.vectors.map(encodeVector),
 			item.appliedTransform,
 			[
-				item.lastValidEvaluation.matrices.map((matrix) => [
-					matrix.label,
-					matrix.values,
-					matrix.durationMs,
-				]),
-				item.lastValidEvaluation.vectors.map((vector) => [
-					vector.label,
-					vector.values,
-					vector.color,
-				]),
+				item.lastValidEvaluation.matrices.map(encodeEvaluatedMatrix),
+				item.lastValidEvaluation.vectors.map(encodeEvaluatedVector),
 			],
 		];
 	};
@@ -133,66 +89,78 @@ function encodeVersion3(session: SessionSnapshot): JsonValue {
 	];
 }
 
+function encodeMatrix(
+	matrix: WorkspaceSnapshot<Dimension>["matrices"][number],
+): JsonValue {
+	return [matrix.label, matrix.entries, matrix.durationMs];
+}
+
+function encodeVector(
+	vector: WorkspaceSnapshot<Dimension>["vectors"][number],
+): JsonValue {
+	return [vector.label, vector.coordinates, vector.color];
+}
+
+function encodeEvaluatedMatrix(
+	matrix: WorkspaceSnapshot<Dimension>["lastValidEvaluation"]["matrices"][number],
+): JsonValue {
+	return [matrix.label, matrix.values, matrix.durationMs];
+}
+
+function encodeEvaluatedVector(
+	vector: WorkspaceSnapshot<Dimension>["lastValidEvaluation"]["vectors"][number],
+): JsonValue {
+	return [vector.label, vector.values, vector.color];
+}
+
 function decodeVersionedTuple(value: unknown): SessionSnapshot {
 	if (!Array.isArray(value)) throw new Error("Invalid share payload shape");
 	const version: unknown = value[0];
 	switch (version) {
 		case 1:
-			return decodeVersion1(value);
+			return decodeCurrentTuple(upgradeVersion1(value));
 		case 2:
-			return decodeVersion2(value);
+			return decodeCurrentTuple(upgradeVersion2(value));
 		case 3:
-			return decodeVersion3(value);
+			return decodeCurrentTuple(value);
 		default:
 			throw new Error("Unsupported share payload");
 	}
 }
 
-function decodeVersion1(value: unknown): SessionSnapshot {
+function upgradeVersion1(value: unknown): unknown[] {
 	const root = tuple(value, 10);
-	const activeDimension = dimension(root[1]);
-	const showBasis = flag(root[2]);
-	const mode: AnimationMode = flag(root[3]) ? "composed" : "steps";
-	const paused = flag(root[4]);
-
-	return createDecodedSession({
-		activeDimension,
-		showBasis,
-		showGrid: true,
-		mode,
-		paused,
-		elapsedMs: finiteNumber(root[5], 0, MAX_SESSION_ELAPSED_MS),
-		workspace2: parseLegacyWorkspace(root[6], 2),
-		workspace3: parseLegacyWorkspace(root[7], 3),
-		camera2: parseCamera(root[8]),
-		camera3: parseCamera(root[9]),
-	});
+	return [
+		CURRENT_SHARE_PAYLOAD_VERSION,
+		root[1],
+		root[2],
+		1,
+		root[3],
+		root[4],
+		root[5],
+		upgradeLegacyWorkspace(root[6]),
+		upgradeLegacyWorkspace(root[7]),
+		root[8],
+		root[9],
+	];
 }
 
-function decodeVersion2(value: unknown): SessionSnapshot {
+function upgradeVersion2(value: unknown): unknown[] {
 	const root = tuple(value, 11);
-	const activeDimension = dimension(root[1]);
-	const showBasis = flag(root[2]);
-	const showGrid = flag(root[3]);
-	const mode: AnimationMode = flag(root[4]) ? "composed" : "steps";
-	const paused = flag(root[5]);
-
-	return createDecodedSession({
-		activeDimension,
-		showBasis,
-		showGrid,
-		mode,
-		paused,
-		elapsedMs: finiteNumber(root[6], 0, MAX_SESSION_ELAPSED_MS),
-		workspace2: parseLegacyWorkspace(root[7], 2),
-		workspace3: parseLegacyWorkspace(root[8], 3),
-		camera2: parseCamera(root[9]),
-		camera3: parseCamera(root[10]),
-	});
+	return [
+		CURRENT_SHARE_PAYLOAD_VERSION,
+		...root.slice(1, 7),
+		upgradeLegacyWorkspace(root[7]),
+		upgradeLegacyWorkspace(root[8]),
+		root[9],
+		root[10],
+	];
 }
 
-function decodeVersion3(value: unknown): SessionSnapshot {
+function decodeCurrentTuple(value: unknown): SessionSnapshot {
 	const root = tuple(value, 11);
+	if (root[0] !== CURRENT_SHARE_PAYLOAD_VERSION)
+		throw new Error("Unsupported share payload");
 	return createDecodedSession({
 		activeDimension: dimension(root[1]),
 		showBasis: flag(root[2]),
@@ -205,6 +173,33 @@ function decodeVersion3(value: unknown): SessionSnapshot {
 		camera2: parseCamera(root[9]),
 		camera3: parseCamera(root[10]),
 	});
+}
+
+function upgradeLegacyWorkspace(value: unknown): unknown[] {
+	const workspace = tuple(value, 3);
+	const matrices = boundedArray(workspace[0]).map((entry) => {
+		const matrix = tuple(entry, 4);
+		return {
+			document: [matrix[0], matrix[1], matrix[3]],
+			evaluation: [matrix[0], matrix[2], matrix[3]],
+		};
+	});
+	const vectors = boundedArray(workspace[1]).map((entry) => {
+		const vector = tuple(entry, 4);
+		return {
+			document: [vector[0], vector[1], vector[3]],
+			evaluation: [vector[0], vector[2], vector[3]],
+		};
+	});
+	return [
+		matrices.map((matrix) => matrix.document),
+		vectors.map((vector) => vector.document),
+		workspace[2],
+		[
+			matrices.map((matrix) => matrix.evaluation),
+			vectors.map((vector) => vector.evaluation),
+		],
+	];
 }
 
 function createDecodedSession({
@@ -245,82 +240,6 @@ function createDecodedSession({
 	};
 }
 
-function parseLegacyWorkspace<D extends Dimension>(
-	value: unknown,
-	dimensionValue: D,
-): WorkspaceSnapshot<D> {
-	const item = tuple(value, 3);
-	const matrices = boundedArray(item[0]).map((entry) => {
-		const matrix = tuple(entry, 4);
-		const label = matchedString(matrix[0], MATRIX_LABEL, 16);
-		const draftValues = expressions(matrix[1], dimensionValue ** 2);
-		const values = numbers(
-			matrix[2],
-			dimensionValue ** 2,
-			MAX_ABSOLUTE_INPUT_VALUE,
-		) as MatrixFor<D>;
-		const durationMs = finiteNumber(
-			matrix[3],
-			MIN_MATRIX_DURATION_MS,
-			MAX_MATRIX_DURATION_MS,
-		);
-		return {
-			label,
-			sources: draftValues,
-			values,
-			durationMs,
-		};
-	});
-	const vectors = boundedArray(item[1]).map((entry) => {
-		const vector = tuple(entry, 4);
-		const label = matchedString(vector[0], VECTOR_LABEL, 4);
-		const draftComponents = expressions(vector[1], dimensionValue);
-		const components = numbers(
-			vector[2],
-			dimensionValue,
-			MAX_ABSOLUTE_INPUT_VALUE,
-		) as VectorFor<D>;
-		const color = matchedString(vector[3], COLOR, 7).toLowerCase();
-		return {
-			label,
-			sources: draftComponents,
-			values: components,
-			color,
-		};
-	});
-	const appliedTransform = numbers(
-		item[2],
-		dimensionValue ** 2,
-		MAX_RENDER_TRANSFORM_VALUE,
-	) as MatrixFor<D>;
-	const workspace: WorkspaceSnapshot<D> = {
-		matrices: matrices.map((matrix) => ({
-			label: matrix.label,
-			sources: matrix.sources,
-			durationMs: matrix.durationMs,
-		})),
-		vectors: vectors.map((vector) => ({
-			label: vector.label,
-			sources: vector.sources,
-			color: vector.color,
-		})),
-		appliedTransform,
-		lastValidEvaluation: {
-			matrices: matrices.map((matrix) => ({
-				label: matrix.label,
-				values: matrix.values,
-				durationMs: matrix.durationMs,
-			})),
-			vectors: vectors.map((vector) => ({
-				label: vector.label,
-				values: vector.values,
-				color: vector.color,
-			})),
-		},
-	};
-	return workspace;
-}
-
 function parseWorkspace<D extends Dimension>(
 	value: unknown,
 	dimensionValue: D,
@@ -330,7 +249,7 @@ function parseWorkspace<D extends Dimension>(
 		const matrix = tuple(entry, 3);
 		return {
 			label: matchedString(matrix[0], MATRIX_LABEL, 16),
-			sources: expressions(matrix[1], dimensionValue ** 2),
+			entries: expressions(matrix[1], dimensionValue ** 2),
 			durationMs: finiteNumber(
 				matrix[2],
 				MIN_MATRIX_DURATION_MS,
@@ -342,7 +261,7 @@ function parseWorkspace<D extends Dimension>(
 		const vector = tuple(entry, 3);
 		return {
 			label: matchedString(vector[0], VECTOR_LABEL, 4),
-			sources: expressions(vector[1], dimensionValue),
+			coordinates: expressions(vector[1], dimensionValue),
 			color: matchedString(vector[2], COLOR, 7).toLowerCase(),
 		};
 	});
@@ -422,7 +341,7 @@ function boundedArray(value: unknown): unknown[] {
 
 function expressions(value: unknown, length: number): string[] {
 	return tuple(value, length).map((entry) =>
-		matchedString(entry, EXPRESSION, 64),
+		matchedString(entry, EXPRESSION, MAX_EXPRESSION_LENGTH),
 	);
 }
 
@@ -473,114 +392,4 @@ function matchedString(
 	)
 		throw new Error("Invalid text value");
 	return value;
-}
-
-function assertFits(payload: string): string {
-	if (payload.length > MAX_SHARE_FRAGMENT_LENGTH)
-		throw new Error("Share payload is too large");
-	return payload;
-}
-
-function toBase64Url(bytes: Uint8Array): string {
-	let binary = "";
-	for (let index = 0; index < bytes.length; index += 0x8000) {
-		binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
-	}
-	return btoa(binary)
-		.replace(/\+/g, "-")
-		.replace(/\//g, "_")
-		.replace(/=+$/, "");
-}
-
-function fromBase64Url(value: string): Uint8Array {
-	if (!/^[A-Za-z0-9_-]+$/.test(value))
-		throw new Error("Malformed share payload");
-	try {
-		const base64 = value.replace(/-/g, "+").replace(/_/g, "/");
-		const binary = atob(
-			base64.padEnd(Math.ceil(base64.length / 4) * 4, "="),
-		);
-		return Uint8Array.from(binary, (character) => character.charCodeAt(0));
-	} catch {
-		throw new Error("Malformed share payload");
-	}
-}
-
-async function transformBytes(
-	bytes: Uint8Array,
-	transform: CompressionStream,
-): Promise<Uint8Array> {
-	const writer = transform.writable.getWriter();
-	const writing = writer
-		.write(new Uint8Array(bytes))
-		.then(() => writer.close());
-	const [result] = await Promise.all([
-		readBounded(transform.readable, MAX_DECODED_BYTES),
-		writing,
-	]);
-	return result;
-}
-
-async function decompressBounded(bytes: Uint8Array): Promise<Uint8Array> {
-	if (typeof DecompressionStream === "undefined")
-		throw new Error("Compressed share payload is unsupported");
-	const transform = new DecompressionStream("gzip");
-	const writer = transform.writable.getWriter();
-	const writing = writer
-		.write(new Uint8Array(bytes))
-		.then(() => writer.close());
-	try {
-		const [result] = await Promise.all([
-			readBounded(transform.readable, MAX_DECODED_BYTES),
-			writing,
-		]);
-		return result;
-	} catch (error) {
-		await Promise.allSettled([writing]);
-		if (isPayloadTooLargeError(error)) throw error;
-		throw malformedPayloadError(error);
-	}
-}
-
-async function readBounded(
-	stream: ReadableStream<Uint8Array>,
-	limit: number,
-): Promise<Uint8Array> {
-	const reader = stream.getReader();
-	const chunks: Uint8Array[] = [];
-	let size = 0;
-	try {
-		while (true) {
-			const { done, value } = await reader.read();
-			if (done) break;
-			size += value.byteLength;
-			if (size > limit) {
-				await reader.cancel();
-				throw new Error("Share payload is too large");
-			}
-			chunks.push(value);
-		}
-	} catch (error) {
-		if (isPayloadTooLargeError(error)) throw error;
-		throw malformedPayloadError(error);
-	}
-	const output = new Uint8Array(size);
-	let offset = 0;
-	for (const chunk of chunks) {
-		output.set(chunk, offset);
-		offset += chunk.byteLength;
-	}
-	return output;
-}
-
-function isPayloadTooLargeError(error: unknown): error is Error {
-	return (
-		error instanceof Error && error.message === "Share payload is too large"
-	);
-}
-
-function malformedPayloadError(cause: unknown): Error {
-	const error = new Error("Malformed share payload");
-	(error as Error & { cause: unknown }).cause = cause;
-	return error;
 }
