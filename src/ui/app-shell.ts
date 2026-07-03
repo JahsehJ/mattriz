@@ -98,7 +98,7 @@ function renderAboutDialog(t: Translate, version: string): string {
           <dl><div><dt data-i18n="reorder">${t("reorder")}</dt><dd data-i18n="reorderDescription">${t("reorderDescription")}</dd></div><div><dt data-i18n="navigate">${t("navigate")}</dt><dd data-i18n="navigateDescription">${t("navigateDescription")}</dd></div></dl>
         </section>
         <footer class="about-links" aria-label="${t("projectLinks")}" data-i18n-aria="projectLinks">
-          <div class="about-link-list"><a href="https://github.com/JahsehJ/mattriz" target="_blank" rel="noreferrer">GitHub</a><a href="https://codeberg.org/JahsehJ/mattriz" target="_blank" rel="noreferrer">Codeberg</a><a href="https://jahsehjaeger.com" target="_blank" rel="noreferrer">jahsehjaeger.com</a></div>
+          <div class="about-link-list"><a href="https://github.com/JahsehJ/mattriz" target="_blank" rel="noreferrer">GitHub</a><a href="https://codeberg.org/JahsehJ/mattriz" target="_blank" rel="noreferrer">Codeberg</a></div>
           <small class="about-version">v${version}</small>
         </footer>
       </div>

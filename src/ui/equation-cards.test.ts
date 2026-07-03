@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
-import { createInitialState, updateNumericCellDraft } from "../domain/state";
+import { setMatrixEntrySource } from "../domain/workspace";
+import { createInitialState } from "../app/state";
 import {
 	renderMatrixCard,
 	renderResultMatrix,
@@ -19,9 +20,9 @@ describe("equation card rendering", () => {
 	it("renders matrix drafts, errors, duration, and accessible labels", () => {
 		const workspace = createInitialState().workspaces[2];
 		const matrix = workspace.matrices[0];
-		updateNumericCellDraft(matrix.entries, 0, "<invalid>", () => true);
+		setMatrixEntrySource(workspace, matrix.id, 0, "<invalid>");
 
-		const html = renderMatrixCard(matrix, workspace, t, 64);
+		const html = renderMatrixCard(workspace.matrices[0], workspace, t, 64);
 
 		expect(html).toContain('value="&lt;invalid&gt;"');
 		expect(html).toContain("aria-invalid");

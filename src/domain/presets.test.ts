@@ -30,17 +30,17 @@ describe("matrix presets", () => {
 		}
 	});
 
-	it("describes rotations as positive 45 degree turns", () => {
+	it("identifies the positive 45 degree rotation presets", () => {
 		const rotations = [
 			...getMatrixPresets(2),
 			...getMatrixPresets(3),
 		].filter(({ kind }) => kind === "rotation");
 
-		expect(rotations.map(({ axis, angle }) => ({ axis, angle }))).toEqual([
-			{ axis: "", angle: 45 },
-			{ axis: "X", angle: 45 },
-			{ axis: "Y", angle: 45 },
-			{ axis: "Z", angle: 45 },
+		expect(rotations.map(({ id }) => id)).toEqual([
+			"rotate-45",
+			"rotate-x-45",
+			"rotate-y-45",
+			"rotate-z-45",
 		]);
 	});
 });

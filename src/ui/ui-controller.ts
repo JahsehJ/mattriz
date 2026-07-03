@@ -1,12 +1,11 @@
 import type { MessageKey, Translate } from "../i18n";
-import {
-	type AppState,
-	getTransformedVectors,
-	getWorkspace,
-} from "../domain/state";
+import { getTransformedVectors } from "../domain/workspace";
+import { type AppState, getWorkspace } from "../app/state";
 import { getAnimationProgress } from "../domain/animation";
+import { getAnimationFrame } from "../app/playback-state";
 import { applyEntryColumnTemplate } from "./equation-layout";
 import { formatDisplayNumber } from "./number-formatting";
+import { canRenderWorkspace } from "../rendering/capability";
 
 interface UiControllerOptions {
 	root: HTMLElement;
@@ -73,14 +72,17 @@ export class UiController {
 		button.textContent = this.options.t(textKey);
 		button.setAttribute("aria-label", this.options.t(labelKey));
 		button.dataset.playbackStatus = status;
+		const workspace = getWorkspace(this.options.getState());
+		button.disabled =
+			!workspace.validity.valid || !canRenderWorkspace(workspace);
 	}
 
 	updateAnimationHighlight(now: number): void {
 		const state = this.options.getState();
+		const workspace = getWorkspace(state);
 		const progress = getAnimationProgress(
-			getWorkspace(state),
-			state.animation,
-			now,
+			workspace.lastValidEvaluation,
+			getAnimationFrame(state.animation, now),
 		);
 		const items = this.options.stack.querySelectorAll<HTMLElement>(
 			".matrix-item[data-matrix-id]",
@@ -103,9 +105,9 @@ export class UiController {
 
 	updateResults(): void {
 		const workspace = getWorkspace(this.options.getState());
-		const vectors = getTransformedVectors(workspace).map((components) =>
-			components.map(formatDisplayNumber),
-		);
+		const vectors = getTransformedVectors(
+			workspace.lastValidEvaluation,
+		).map((components) => components.map(formatDisplayNumber));
 		vectors.forEach((components, vectorIndex) => {
 			for (let index = 0; index < workspace.dimension; index += 1) {
 				const output =

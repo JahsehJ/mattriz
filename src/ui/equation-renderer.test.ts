@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { createInitialState } from "../domain/state";
+import { replaceWorkspaceVectors } from "../domain/workspace";
+import { createInitialState } from "../app/state";
 import { EquationRenderer } from "./equation-renderer";
 
 const t = (key: string) => key;
@@ -24,7 +25,7 @@ describe("equation renderer", () => {
 
 	it("renders an input-only equation when vectors are absent", () => {
 		const workspace = createInitialState().workspaces[2];
-		workspace.vectors = [];
+		replaceWorkspaceVectors(workspace, []);
 		const renderer = new EquationRenderer({
 			root: {} as HTMLElement,
 			t,

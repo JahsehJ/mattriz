@@ -1,9 +1,13 @@
-import { identityMatrix } from "../domain/math";
+import { type Mat2, type Mat3, identityMatrix } from "../domain/math";
+import { type AppState, getWorkspace } from "./state";
+import { getAnimationDuration } from "../domain/animation";
+import { canRenderTransform } from "../rendering/capability";
 import {
-	type AppState,
-	getWorkspace,
-	setAppliedTransform,
-} from "../domain/state";
+	getPlaybackElapsed,
+	pausePlayback,
+	resetPlayback,
+	togglePlayback,
+} from "./playback-state";
 
 interface PlaybackControllerOptions {
 	getState(): AppState;
@@ -15,43 +19,54 @@ export class PlaybackController {
 	constructor(private readonly options: PlaybackControllerOptions) {}
 
 	toggle(): void {
-		const animation = this.options.getState().animation;
-		const now = this.options.now();
-		if (animation.status === "playing") {
-			animation.status = "paused";
-			animation.pausedAt = now;
-		} else if (animation.status === "paused") {
-			animation.status = "playing";
-			animation.startedAt += now - animation.pausedAt;
-			animation.pausedAt = 0;
-		} else {
-			animation.status = "playing";
-			animation.startedAt = now;
-			animation.pausedAt = 0;
-		}
+		const state = this.options.getState();
+		state.animation = togglePlayback(state.animation, this.options.now());
 		this.options.render(false);
 	}
 
 	reset(renderStack = true): void {
-		const animation = this.options.getState().animation;
-		animation.status = "idle";
-		animation.startedAt = 0;
-		animation.pausedAt = 0;
+		const state = this.options.getState();
+		state.animation = resetPlayback(state.animation);
 		this.options.render(renderStack);
 	}
 
 	resetTransform(): void {
 		const state = this.options.getState();
 		const workspace = getWorkspace(state);
-		setAppliedTransform(workspace, identityMatrix(workspace.dimension));
+		if (workspace.dimension === 2)
+			state.appliedTransforms[2] = identityMatrix(2);
+		else state.appliedTransforms[3] = identityMatrix(3);
 		this.reset(false);
 	}
 
 	pauseForVisibility(): boolean {
-		const animation = this.options.getState().animation;
-		if (animation.status !== "playing") return false;
-		animation.status = "paused";
-		animation.pausedAt = this.options.now();
+		const state = this.options.getState();
+		if (state.animation.status !== "playing") return false;
+		state.animation = pausePlayback(state.animation, this.options.now());
+		return true;
+	}
+
+	complete(): boolean {
+		const state = this.options.getState();
+		const workspace = getWorkspace(state);
+		const now = this.options.now();
+		const transform = workspace.lastValidEvaluation.totalTransform;
+		if (
+			state.animation.status !== "playing" ||
+			!Number.isFinite(now) ||
+			getPlaybackElapsed(state.animation, now) <
+				getAnimationDuration(
+					workspace.lastValidEvaluation,
+					state.animation.mode,
+				) ||
+			!canRenderTransform(transform)
+		)
+			return false;
+		if (workspace.dimension === 2)
+			state.appliedTransforms[2] = [...transform] as Mat2;
+		else state.appliedTransforms[3] = [...transform] as Mat3;
+		state.animation = resetPlayback(state.animation);
+		this.options.render(false);
 		return true;
 	}
 }

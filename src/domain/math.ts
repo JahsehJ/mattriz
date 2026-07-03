@@ -40,6 +40,12 @@ export function identityMatrix<D extends Dimension>(
 	return (dimension === 2 ? identity2() : identity3()) as MatrixFor<D>;
 }
 
+export function cloneMatrix<D extends Dimension>(
+	matrix: Readonly<MatrixFor<D>>,
+): MatrixFor<D> {
+	return [...matrix] as unknown as MatrixFor<D>;
+}
+
 export function multiply2(a: Mat2, b: Mat2): Mat2 {
 	return [
 		a[0] * b[0] + a[1] * b[2],
@@ -120,19 +126,6 @@ export function applyMatrixToVector<D extends Dimension>(
 		m[3] * v[0] + m[4] * v[1] + m[5] * v[2],
 		m[6] * v[0] + m[7] * v[1] + m[8] * v[2],
 	] as VectorFor<D>;
-}
-
-export function parseFiniteNumber(value: string): number | null {
-	const next = Number(value);
-	return Number.isFinite(next) ? next : null;
-}
-
-export function parseBoundedNumber(
-	value: string,
-	maxAbsoluteValue: number,
-): number | null {
-	const next = parseFiniteNumber(value);
-	return next !== null && Math.abs(next) <= maxAbsoluteValue ? next : null;
 }
 
 export function clamp(value: number, min: number, max: number): number {

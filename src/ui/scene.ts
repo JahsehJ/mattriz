@@ -9,8 +9,7 @@ import {
 	Vec3,
 	applyMatrixToVector,
 } from "../domain/math";
-import { type VectorNode, getVectorValues } from "../domain/state";
-import type { RenderState } from "../domain/render-state";
+import type { RenderState, RenderVector } from "../app/render-state";
 import type {
 	CameraSnapshot,
 	CameraSnapshots,
@@ -53,6 +52,97 @@ interface VectorVisual {
 	label: THREE.Sprite;
 	labelText: string;
 	color: string;
+}
+
+interface CameraControls {
+	readonly target: THREE.Vector3;
+	update(): boolean;
+}
+
+interface SceneResources {
+	gridGroup: THREE.Group;
+	axisLabels: THREE.Group;
+	basisArrows: ArrowVisual[];
+	vectorVisuals: Map<string, VectorVisual>;
+	arrowGeometries: {
+		shaft: THREE.BufferGeometry;
+		head: THREE.BufferGeometry;
+	};
+	renderer: { dispose(): void };
+}
+
+export function captureCameraSnapshots(
+	orthoCamera: THREE.OrthographicCamera,
+	orthoControls: CameraControls,
+	perspectiveCamera: THREE.PerspectiveCamera,
+	perspectiveControls: CameraControls,
+): CameraSnapshots {
+	return {
+		2: captureCameraSnapshot(orthoCamera, orthoControls.target),
+		3: captureCameraSnapshot(perspectiveCamera, perspectiveControls.target),
+	};
+}
+
+export function restoreCameraSnapshots(
+	snapshots: CameraSnapshots,
+	orthoCamera: THREE.OrthographicCamera,
+	orthoControls: CameraControls,
+	perspectiveCamera: THREE.PerspectiveCamera,
+	perspectiveControls: CameraControls,
+): void {
+	restoreCameraSnapshot(orthoCamera, orthoControls, snapshots[2]);
+	restoreCameraSnapshot(perspectiveCamera, perspectiveControls, snapshots[3]);
+}
+
+export function disposeSceneResources(resources: SceneResources): void {
+	resources.gridGroup.traverse((object) => {
+		if (!(object instanceof THREE.LineSegments)) return;
+		const line = object as THREE.LineSegments<
+			THREE.BufferGeometry,
+			THREE.Material
+		>;
+		line.geometry.dispose();
+		line.material.dispose();
+	});
+	resources.axisLabels.children.forEach((label) => {
+		disposeLabel(label as THREE.Sprite);
+	});
+	resources.basisArrows.forEach(disposeArrowVisual);
+	resources.vectorVisuals.forEach((visual) => {
+		disposeArrowVisual(visual.arrow);
+		disposeLabel(visual.label);
+	});
+	resources.vectorVisuals.clear();
+	resources.arrowGeometries.shaft.dispose();
+	resources.arrowGeometries.head.dispose();
+	resources.renderer.dispose();
+}
+
+function captureCameraSnapshot(
+	camera: THREE.Camera & { zoom: number },
+	target: THREE.Vector3,
+): CameraSnapshot {
+	return {
+		position: camera.position.toArray(),
+		target: target.toArray(),
+		zoom: camera.zoom,
+	};
+}
+
+function restoreCameraSnapshot(
+	camera: THREE.Camera & {
+		zoom: number;
+		updateProjectionMatrix(): void;
+	},
+	controls: CameraControls,
+	snapshot: CameraSnapshot,
+): void {
+	camera.position.fromArray(snapshot.position);
+	camera.zoom = snapshot.zoom;
+	controls.target.fromArray(snapshot.target);
+	camera.lookAt(controls.target);
+	camera.updateProjectionMatrix();
+	controls.update();
 }
 
 export class MatrixScene {
@@ -195,28 +285,21 @@ export class MatrixScene {
 	}
 
 	getCameraSnapshots(): CameraSnapshots {
-		return {
-			2: this.getCameraSnapshot(
-				this.orthoCamera,
-				this.orthoControls.target,
-			),
-			3: this.getCameraSnapshot(
-				this.perspectiveCamera,
-				this.perspectiveControls.target,
-			),
-		};
+		return captureCameraSnapshots(
+			this.orthoCamera,
+			this.orthoControls,
+			this.perspectiveCamera,
+			this.perspectiveControls,
+		);
 	}
 
 	restoreCameraSnapshots(snapshots: CameraSnapshots): void {
-		this.restoreCameraSnapshot(
+		restoreCameraSnapshots(
+			snapshots,
 			this.orthoCamera,
 			this.orthoControls,
-			snapshots[2],
-		);
-		this.restoreCameraSnapshot(
 			this.perspectiveCamera,
 			this.perspectiveControls,
-			snapshots[3],
 		);
 	}
 
@@ -273,27 +356,14 @@ export class MatrixScene {
 		this.perspectiveControls.dispose();
 		this.orthoControls.dispose();
 
-		this.gridGroup.traverse((object) => {
-			if (!(object instanceof THREE.LineSegments)) return;
-			const line = object as THREE.LineSegments<
-				THREE.BufferGeometry,
-				THREE.Material
-			>;
-			line.geometry.dispose();
-			line.material.dispose();
+		disposeSceneResources({
+			gridGroup: this.gridGroup,
+			axisLabels: this.axisLabels,
+			basisArrows: this.basisArrows,
+			vectorVisuals: this.vectorVisuals,
+			arrowGeometries: this.arrowGeometries,
+			renderer: this.renderer,
 		});
-		this.axisLabels.children.forEach((label) => {
-			disposeLabel(label as THREE.Sprite);
-		});
-		this.basisArrows.forEach(disposeArrowVisual);
-		this.vectorVisuals.forEach((visual) => {
-			disposeArrowVisual(visual.arrow);
-			disposeLabel(visual.label);
-		});
-		this.vectorVisuals.clear();
-		this.arrowGeometries.shaft.dispose();
-		this.arrowGeometries.head.dispose();
-		this.renderer.dispose();
 	}
 
 	private updateControls(dimension: Dimension): boolean {
@@ -308,33 +378,6 @@ export class MatrixScene {
 		}
 
 		return this.perspectiveControls.update();
-	}
-
-	private getCameraSnapshot(
-		camera: THREE.Camera & { zoom: number },
-		target: THREE.Vector3,
-	): CameraSnapshot {
-		return {
-			position: camera.position.toArray(),
-			target: target.toArray(),
-			zoom: camera.zoom,
-		};
-	}
-
-	private restoreCameraSnapshot(
-		camera: THREE.Camera & {
-			zoom: number;
-			updateProjectionMatrix(): void;
-		},
-		controls: OrbitControls,
-		snapshot: CameraSnapshot,
-	): void {
-		camera.position.fromArray(snapshot.position);
-		camera.zoom = snapshot.zoom;
-		controls.target.fromArray(snapshot.target);
-		camera.lookAt(controls.target);
-		camera.updateProjectionMatrix();
-		controls.update();
 	}
 
 	private updateGrid(
@@ -387,7 +430,7 @@ export class MatrixScene {
 	private updateVectors<D extends Dimension>(
 		dimension: D,
 		matrix: MatrixFor<D>,
-		vectors: VectorNode<D>[],
+		vectors: readonly RenderVector<D>[],
 	): void {
 		const activeIds = new Set(vectors.map((vector) => vector.id));
 		for (const [id, visual] of this.vectorVisuals) {
@@ -402,7 +445,7 @@ export class MatrixScene {
 			const transformed = applyMatrixToVector(
 				dimension,
 				matrix,
-				getVectorValues(vector),
+				vector.coordinates,
 			);
 			const renderVector: Vec3 =
 				dimension === 2

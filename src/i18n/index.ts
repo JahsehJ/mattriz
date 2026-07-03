@@ -108,7 +108,7 @@ const en = {
 		"The composed transform does not have a real eigenvector.",
 	eigenbasisUnavailable:
 		"The composed transform does not have a full real eigenbasis.",
-	matrix: "{label} matrix",
+	matrix: "Matrix {label}",
 	deleteMatrix: "Delete {label}",
 	matrixValues: "{label} matrix values",
 	matrixEntries: "{label} entries",

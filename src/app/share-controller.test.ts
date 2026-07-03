@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MAX_SHARE_FRAGMENT_LENGTH } from "../infrastructure/session-codec";
-import { createInitialState } from "../domain/state";
+import { createInitialState } from "./state";
 import { ShareController } from "./share-controller";
 
 const encodeShareSession = vi.hoisted(() => vi.fn());

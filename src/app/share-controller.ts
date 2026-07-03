@@ -10,8 +10,8 @@ import {
 	encodeShareSession,
 	type CameraSnapshots,
 } from "../infrastructure/session-codec";
-import type { AppState } from "../domain/state";
-import { getAnimationElapsed } from "../domain/animation";
+import type { AppState } from "./state";
+import { getPlaybackElapsed } from "./playback-state";
 import { captureSessionSnapshot } from "./session-snapshot";
 
 interface ShareControllerOptions {
@@ -86,7 +86,7 @@ export class ShareController {
 		const elapsedMs =
 			state.animation.status === "idle"
 				? 0
-				: getAnimationElapsed(state.animation, performance.now());
+				: getPlaybackElapsed(state.animation, performance.now());
 		return encodeShareSession(
 			captureSessionSnapshot(state, elapsedMs, this.options.getCameras()),
 		);

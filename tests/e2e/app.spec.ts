@@ -20,6 +20,17 @@ test("edits a matrix and updates transformed vectors", async ({ page }) => {
 	await matrixEntry.fill("not-a-number");
 	await expect(matrixEntry).toHaveAttribute("aria-invalid", "");
 	await expect(firstResult).toHaveText("2");
+	await expect(page.locator(".equation-equals")).toHaveAttribute(
+		"data-stale",
+		"",
+	);
+	await expect(page.locator(".result-matrix-card")).toHaveAttribute(
+		"data-stale",
+		"",
+	);
+	await expect(
+		page.getByRole("button", { name: "Apply transform" }),
+	).toBeDisabled();
 
 	const siblingEntry = page.getByRole("textbox", {
 		name: "A row 2 column 1",
@@ -34,9 +45,15 @@ test("edits a matrix and updates transformed vectors", async ({ page }) => {
 
 	await page.getByRole("button", { name: "Add matrix" }).click();
 	await expect(matrixEntry).toHaveAttribute("aria-invalid", "");
+	await matrixEntry.fill("4");
+	await expect(firstResult).toHaveText("4");
+	await expect(page.locator(".equation-equals")).not.toHaveAttribute(
+		"data-stale",
+		"",
+	);
 });
 
-test("rejects a matrix edit that would overflow the render transform", async ({
+test("computes an overflowing transform but disables playback", async ({
 	page,
 }) => {
 	for (let index = 0; index < 15; index += 1) {
@@ -49,7 +66,10 @@ test("rejects a matrix edit that would overflow the render transform", async ({
 		await firstEntries.nth(index).fill("100");
 	}
 
-	await expect(firstEntries.nth(15)).toHaveAttribute("aria-invalid", "");
+	await expect(firstEntries.nth(15)).not.toHaveAttribute("aria-invalid", "");
+	await expect(
+		page.getByRole("button", { name: "Apply transform" }),
+	).toBeDisabled();
 
 	await page.getByRole("button", { name: "Share" }).click();
 	const shareUrl = await page
@@ -59,7 +79,10 @@ test("rejects a matrix edit that would overflow the render transform", async ({
 
 	await expect(
 		page.locator('.matrix-grid input[data-entry-index="0"]').nth(15),
-	).toHaveAttribute("aria-invalid", "");
+	).not.toHaveAttribute("aria-invalid", "");
+	await expect(
+		page.getByRole("button", { name: "Apply transform" }),
+	).toBeDisabled();
 });
 
 test("switches dimensions and adds a matrix preset", async ({ page }) => {
@@ -73,6 +96,52 @@ test("switches dimensions and adds a matrix preset", async ({ page }) => {
 	await expect(
 		page.getByRole("textbox", { name: "B row 1 column 1" }),
 	).toHaveValue("sqrt(2)/2");
+});
+
+test("applies, pauses, resumes, completes, and resets a transform", async ({
+	page,
+}) => {
+	await page.getByRole("textbox", { name: "A row 1 column 1" }).fill("2");
+	await page.getByRole("slider", { name: "A duration" }).fill("300");
+
+	const apply = page.getByRole("button", { name: "Apply transform" });
+	await apply.click();
+	const pause = page.getByRole("button", { name: "Pause animation" });
+	await expect(pause).toBeVisible();
+	await pause.click();
+	const resume = page.getByRole("button", { name: "Resume animation" });
+	await expect(resume).toBeVisible();
+	await resume.click();
+
+	await expect(apply).toBeVisible({ timeout: 2_000 });
+	await apply.click();
+	await expect(pause).toBeVisible();
+	await page.getByRole("button", { name: "Reset transform" }).click();
+	await expect(apply).toBeVisible();
+});
+
+test("creates, reorders, and deletes matrices and vectors", async ({
+	page,
+}) => {
+	await page.getByRole("button", { name: "Add matrix" }).click();
+	const matrices = page.locator(".matrix-item");
+	await expect(matrices).toHaveCount(2);
+	await expect(matrices.nth(0)).toHaveAttribute("aria-label", "Matrix B");
+
+	await matrices.nth(0).focus();
+	await matrices.nth(0).press("Alt+ArrowRight");
+	await expect(matrices.nth(0)).toHaveAttribute("aria-label", "Matrix A");
+	await page.getByRole("button", { name: "Delete B" }).click();
+	await expect(matrices).toHaveCount(1);
+
+	await page.getByRole("button", { name: "Add vector" }).click();
+	const vectors = page.locator(".vector-column-label");
+	await expect(vectors).toHaveCount(2);
+	await vectors.nth(1).focus();
+	await vectors.nth(1).press("Alt+ArrowLeft");
+	await expect(vectors.nth(0)).toHaveAttribute("aria-label", "v2");
+	await page.getByRole("button", { name: "Delete v2" }).click();
+	await expect(vectors).toHaveCount(1);
 });
 
 test("shares and restores the current workspace", async ({ page }) => {

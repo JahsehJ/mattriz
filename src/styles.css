@@ -637,6 +637,11 @@ kbd {
 	font-size: 2rem;
 }
 
+.equation-equals[data-stale],
+.result-matrix-card[data-stale] {
+	opacity: 0.45;
+}
+
 .equation-right {
 	min-width: 0;
 }

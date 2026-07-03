@@ -1,21 +1,15 @@
 import "./styles.css";
 import packageJson from "../package.json";
 import { MatrixScene } from "./ui/scene";
-import {
-	AppState,
-	createInitialState,
-	getTotalTransform,
-	getWorkspace,
-	setAppliedTransform,
-} from "./domain/state";
-import { getAnimationDuration, getAnimationElapsed } from "./domain/animation";
-import { getRenderState } from "./domain/render-state";
+import { AppState, createInitialState, getWorkspace } from "./app/state";
+import { getAnimationDuration } from "./domain/animation";
+import { getPlaybackElapsed, resetPlayback } from "./app/playback-state";
+import { getRenderState } from "./app/render-state";
 import { Dimension } from "./domain/math";
 import { Locale, MessageKey, translate } from "./i18n";
 import { getLocaleFromLanguageTag } from "./app/locale-routing";
 import { registerAppServiceWorker } from "./app/service-worker-registration";
 import { decodeShareSession } from "./infrastructure/session-codec";
-import { canRenderWorkspace } from "./rendering/capability";
 import { restoreSessionSnapshot } from "./app/session-snapshot";
 import { WorkspaceController } from "./app/workspace-controller";
 import { ShareController } from "./app/share-controller";
@@ -29,7 +23,7 @@ import {
 } from "./ui/equation-cards";
 import { EquationRenderer } from "./ui/equation-renderer";
 
-let state: AppState = createInitialState();
+let state: AppState = createInitialState(() => crypto.randomUUID());
 const appVersion = packageJson.version;
 const locale: Locale = getLocaleFromLanguageTag(document.documentElement.lang);
 const t = (key: MessageKey, values?: Record<string, string | number>): string =>
@@ -109,8 +103,11 @@ const playbackController = new PlaybackController({
 });
 const workspaceController = new WorkspaceController(root, stackElement, t, {
 	getState: () => state,
-	resetAnimation: (renderStack) => playbackController.reset(renderStack),
-	updateResults: () => uiController.updateResults(),
+	commit: ({ renderStack = true, updateResults = false } = {}) => {
+		state.animation = resetPlayback(state.animation);
+		uiController.render(renderStack);
+		if (updateResults) uiController.updateResults();
+	},
 	updateMatrixWidth: updateMatrixGridWidth,
 	updateVectorWidths: updateVectorColumnWidths,
 });
@@ -311,7 +308,7 @@ function closePopupMenus(): void {
 }
 
 function resetWorkspace(): void {
-	state = createInitialState();
+	state = createInitialState(() => crypto.randomUUID());
 	scene.resetView(2);
 	scene.resetView(3);
 	resetWorkspaceDialogElement.close();
@@ -341,12 +338,13 @@ function renderFrame(now: number): void {
 	const workspace = getWorkspace(state);
 	if (
 		state.animation.status === "playing" &&
-		getAnimationElapsed(state.animation, now) >=
-			getAnimationDuration(workspace, state.animation.mode)
+		getPlaybackElapsed(state.animation, now) >=
+			getAnimationDuration(
+				workspace.lastValidEvaluation,
+				state.animation.mode,
+			)
 	) {
-		setAppliedTransform(workspace, getTotalTransform(workspace));
-		state.animation.status = "idle";
-		uiController.render(false);
+		playbackController.complete();
 	}
 	uiController.updateAnimationHighlight(now);
 	const controlsChanged = scene.render(getRenderState(state, now));
@@ -361,19 +359,9 @@ async function initialize(): Promise<void> {
 		try {
 			const restored = await decodeShareSession(hash.slice(3));
 			state = restoreSessionSnapshot(restored);
-			if (
-				!canRenderWorkspace(state.workspaces[2]) ||
-				!canRenderWorkspace(state.workspaces[3])
-			)
-				throw new Error("Session exceeds rendering capabilities");
-			if (state.animation.status === "paused") {
-				const now = performance.now();
-				state.animation.startedAt = now - restored.elapsedMs;
-				state.animation.pausedAt = now;
-			}
 			scene.restoreCameraSnapshots(restored.cameras);
 		} catch {
-			state = createInitialState();
+			state = createInitialState(() => crypto.randomUUID());
 			shareErrorDialogElement.showModal();
 		}
 	}

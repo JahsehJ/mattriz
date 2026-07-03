@@ -9,8 +9,6 @@ import {
 	lerpMatrix,
 	multiply2,
 	multiply3,
-	parseBoundedNumber,
-	parseFiniteNumber,
 } from "./math";
 
 describe("matrix multiplication", () => {
@@ -42,20 +40,6 @@ describe("matrix interpolation", () => {
 		expect(lerpMatrix(2, from, to, 0.5)).toEqual([2, 1, 1, 2]);
 		expect(lerpMatrix(2, from, to, -0.1)).toEqual(from);
 		expect(lerpMatrix(2, from, to, 1.1)).toEqual(to);
-	});
-});
-
-describe("numeric input parsing", () => {
-	it("accepts finite numeric input and rejects malformed or non-finite input", () => {
-		expect(parseFiniteNumber("1.25")).toBe(1.25);
-		expect(parseFiniteNumber("not a number")).toBeNull();
-		expect(parseFiniteNumber("Infinity")).toBeNull();
-	});
-
-	it("enforces the configured absolute bound", () => {
-		expect(parseBoundedNumber("100", 100)).toBe(100);
-		expect(parseBoundedNumber("-100", 100)).toBe(-100);
-		expect(parseBoundedNumber("100.01", 100)).toBeNull();
 	});
 });
 

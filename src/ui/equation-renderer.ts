@@ -1,8 +1,4 @@
-import {
-	canAddWorkspaceNodes,
-	getTotalTransform,
-	type AnyWorkspace,
-} from "../domain/state";
+import { canAddWorkspaceNodes, type AnyWorkspace } from "../domain/workspace";
 import {
 	analyzeRealEigenbasis,
 	analyzeRepresentativeRealEigenvector,
@@ -29,9 +25,10 @@ export class EquationRenderer {
 	render(): string {
 		const workspace = this.options.getWorkspace();
 		const hasVectors = workspace.vectors.length > 0;
-		const results = hasVectors
+		const hasResults = workspace.lastValidEvaluation.vectors.length > 0;
+		const results = hasResults
 			? `
-      <math class="equation-equals" aria-label="${this.options.t("equals")}">
+      <math class="equation-equals" ${workspace.validity.valid ? "" : "data-stale"} aria-label="${this.options.t("equals")}">
         <mo>=</mo>
       </math>
       <section class="equation-right" aria-label="${this.options.t("computedVectors")}">
@@ -41,7 +38,7 @@ export class EquationRenderer {
 			: "";
 
 		return `
-    <div class="equation-row ${hasVectors ? "" : "equation-row-input-only"}">
+    <div class="equation-row ${hasResults ? "" : "equation-row-input-only"}">
       <section class="equation-left" aria-label="${this.options.t("inputMatricesAndVectors")}">
         <ol class="matrix-stack" aria-label="${this.options.t("matrices")}">${this.renderAddMatrixOperand()}${workspace.matrices.map((matrix) => renderMatrixCard(matrix, workspace, this.options.t, this.options.maxInputLength)).join("")}</ol>
         ${hasVectors ? renderVectorMatrix(workspace, this.options.t, this.options.maxInputLength, () => this.renderVectorAddControl("vector-add-button-inline")) : ""}
@@ -99,7 +96,7 @@ export class EquationRenderer {
 				.slice(0, workspace.dimension)
 				.map(
 					(coordinate) =>
-						`<output class="vector-drag-preview-cell">${escapeHtml(coordinate.source)}</output>`,
+						`<output class="vector-drag-preview-cell">${escapeHtml(coordinate)}</output>`,
 				)
 				.join("")}
     </div>
@@ -173,7 +170,7 @@ export class EquationRenderer {
 		vectorAvailable: boolean;
 	} {
 		const workspace = this.options.getWorkspace();
-		const transform = getTotalTransform(workspace);
+		const transform = workspace.lastValidEvaluation.totalTransform;
 		const basis = analyzeRealEigenbasis(workspace.dimension, transform);
 		const representative = analyzeRepresentativeRealEigenvector(
 			workspace.dimension,
@@ -195,18 +192,27 @@ export class EquationRenderer {
 
 	private matrixPresetName(preset: MatrixPreset): string {
 		const t = this.options.t;
+		const axisById: Readonly<Record<string, string>> = {
+			"reflect-x": "X",
+			"reflect-y": "Y",
+			"reflect-xy": "XY",
+			"reflect-xz": "XZ",
+			"reflect-yz": "YZ",
+			"rotate-x-45": "X",
+			"rotate-y-45": "Y",
+			"rotate-z-45": "Z",
+		};
+		const axis = axisById[preset.id] ?? "";
 		if (preset.kind === "reflection")
 			return t(
 				this.options.getWorkspace().dimension === 2
 					? "reflectionAxisPreset"
 					: "reflectionPlanePreset",
-				{ axis: preset.axis },
+				{ axis },
 			);
 		return t("rotationPreset", {
-			angle: preset.angle ?? 45,
-			axis: preset.axis
-				? ` ${t("aroundAxis", { axis: preset.axis })}`
-				: "",
+			angle: 45,
+			axis: axis ? ` ${t("aroundAxis", { axis })}` : "",
 		});
 	}
 }

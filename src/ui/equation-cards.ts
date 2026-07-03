@@ -1,9 +1,8 @@
 import {
-	getNumericCellError,
 	getTransformedVectors,
 	type AnyMatrixNode,
 	type AnyWorkspace,
-} from "../domain/state";
+} from "../domain/workspace";
 import type { Translate } from "../i18n";
 import {
 	applyEntryColumnTemplate,
@@ -21,19 +20,16 @@ export function renderMatrixCard(
 ): string {
 	const columns = workspace.dimension;
 	const template = renderEntryColumnTemplate(
-		groupEntriesByColumn(
-			matrix.entries.map((entry) => entry.source),
-			columns,
-		),
+		groupEntriesByColumn(matrix.entries, columns),
 	);
 	const entries = matrix.entries
 		.map(
 			(entry, index) => `
         <input name="matrix-${matrix.id}-entry-${index}" type="text"
           inputmode="text" maxlength="${maxInputLength}" autocomplete="off"
-          value="${escapeHtml(entry.source)}" data-matrix-id="${matrix.id}"
+          value="${escapeHtml(entry)}" data-matrix-id="${matrix.id}"
           data-entry-index="${index}"
-          ${getNumericCellError(entry) ? "aria-invalid" : ""}
+          ${workspace.validity.matrixEntries[matrix.id]?.[index] === false ? "aria-invalid" : ""}
           aria-label="${t("matrixEntry", { label: matrix.label, row: Math.floor(index / columns) + 1, column: (index % columns) + 1 })}" />`,
 		)
 		.join("");
@@ -65,9 +61,7 @@ export function renderVectorMatrix(
 	renderAddControl: () => string,
 ): string {
 	const template = renderEntryColumnTemplate(
-		workspace.vectors.map((vector) =>
-			vector.coordinates.map((coordinate) => coordinate.source),
-		),
+		workspace.vectors.map((vector) => vector.coordinates),
 		["60px"],
 	);
 	const labels = workspace.vectors
@@ -86,8 +80,8 @@ export function renderVectorMatrix(
 			`${workspace.vectors
 				.map((vector) => {
 					const coordinate = vector.coordinates[componentIndex];
-					const value = coordinate?.source ?? "0";
-					return `<input name="vector-${vector.id}-component-${componentIndex}" type="text" inputmode="text" maxlength="${maxInputLength}" autocomplete="off" value="${escapeHtml(value)}" data-vector-id="${vector.id}" data-vector-column-id="${vector.id}" data-component-index="${componentIndex}" ${coordinate && getNumericCellError(coordinate) ? "aria-invalid" : ""} aria-label="${t("vectorComponent", { label: vector.label, component: componentIndex + 1 })}" />`;
+					const value = coordinate ?? "0";
+					return `<input name="vector-${vector.id}-component-${componentIndex}" type="text" inputmode="text" maxlength="${maxInputLength}" autocomplete="off" value="${escapeHtml(value)}" data-vector-id="${vector.id}" data-vector-column-id="${vector.id}" data-component-index="${componentIndex}" ${workspace.validity.vectorCoordinates[vector.id]?.[componentIndex] === false ? "aria-invalid" : ""} aria-label="${t("vectorComponent", { label: vector.label, component: componentIndex + 1 })}" />`;
 				})
 				.join(
 					"",
@@ -105,18 +99,19 @@ export function renderResultMatrix(
 	workspace: AnyWorkspace,
 	t: Translate,
 ): string {
-	const vectors = getTransformedVectors(workspace).map((components) =>
+	const evaluation = workspace.lastValidEvaluation;
+	const vectors = getTransformedVectors(evaluation).map((components) =>
 		components.map(formatDisplayNumber),
 	);
 	const template = renderEntryColumnTemplate(vectors);
-	const labels = workspace.vectors
+	const labels = evaluation.vectors
 		.map(
 			(vector) =>
 				`<div class="result-column-label" style="--vector:${vector.color}"><math class="vector-label" aria-label="${t("transformedVector", { label: vector.label })}">${renderVectorSymbol(vector.label, true)}</math><span class="vector-color-label" aria-hidden="true"></span></div>`,
 		)
 		.join("");
 	const entries = Array.from(
-		{ length: workspace.dimension },
+		{ length: evaluation.dimension },
 		(_, componentIndex) =>
 			vectors
 				.map(
@@ -126,7 +121,7 @@ export function renderResultMatrix(
 				.join(""),
 	).join("");
 	return `
-    <article class="result-matrix-card result-matrix-card-${workspace.dimension}" aria-label="${t("transformedVectorMatrix")}">
+    <article class="result-matrix-card result-matrix-card-${workspace.dimension}" ${workspace.validity.valid ? "" : "data-stale"} aria-label="${t("transformedVectorMatrix")}">
       <div class="result-column-labels" style="grid-template-columns:${template}">${labels}</div>
       <div class="result-expression result-expression-${workspace.dimension}" style="grid-template-columns:${template}" role="group" aria-label="${t("transformedVectorColumns")}">${entries}</div>
       <div class="card-balance-row" aria-hidden="true"></div>

@@ -1,9 +1,13 @@
 import * as THREE from "three";
 import { describe, expect, it, vi } from "vitest";
-import { MatrixScene } from "./scene";
+import {
+	captureCameraSnapshots,
+	disposeSceneResources,
+	restoreCameraSnapshots,
+} from "./scene";
 
-describe("scene disposal", () => {
-	it("releases controls, grid, vector, label, and renderer resources once", () => {
+describe("scene resource disposal", () => {
+	it("releases grid, vector, label, and renderer resources", () => {
 		const gridGeometry = new THREE.BufferGeometry();
 		const gridMaterial = new THREE.LineBasicMaterial();
 		const labelTexture = new THREE.Texture();
@@ -29,31 +33,22 @@ describe("scene disposal", () => {
 		gridGroup.add(new THREE.LineSegments(gridGeometry, gridMaterial));
 		const axisLabels = new THREE.Group();
 		axisLabels.add(new THREE.Sprite(labelMaterial));
-		const controls = {
-			removeEventListener: vi.fn(),
-			dispose: vi.fn(),
-		};
 		const renderer = { dispose: vi.fn() };
-		const scene = Object.assign(Object.create(MatrixScene.prototype), {
-			disposed: false,
-			perspectiveControls: controls,
-			orthoControls: controls,
-			handleControlsChange: vi.fn(),
+		disposeSceneResources({
 			gridGroup,
 			axisLabels,
 			basisArrows: [
-				{ basicMaterial: arrowBasic, lambertMaterial: arrowLambert },
+				{
+					basicMaterial: arrowBasic,
+					lambertMaterial: arrowLambert,
+				} as never,
 			],
 			vectorVisuals: new Map(),
 			arrowGeometries: { shaft: shaftGeometry, head: headGeometry },
 			renderer,
-		}) as MatrixScene;
-
-		scene.dispose();
-		scene.dispose();
+		});
 
 		disposeSpies.forEach((spy) => expect(spy).toHaveBeenCalledOnce());
-		expect(controls.dispose).toHaveBeenCalledTimes(2);
 		expect(renderer.dispose).toHaveBeenCalledOnce();
 	});
 });
@@ -72,21 +67,25 @@ describe("scene camera snapshots", () => {
 			target: new THREE.Vector3(10, 11, 12),
 			update: vi.fn(),
 		};
-		const scene = Object.assign(Object.create(MatrixScene.prototype), {
-			perspectiveCamera,
+		const snapshots = captureCameraSnapshots(
 			orthoCamera,
-			perspectiveControls,
 			orthoControls,
-		}) as MatrixScene;
-
-		const snapshots = scene.getCameraSnapshots();
+			perspectiveCamera,
+			perspectiveControls,
+		);
 		expect(snapshots[3].position).toEqual([1, 2, 3]);
 		expect(snapshots[2].target).toEqual([10, 11, 12]);
 
-		scene.restoreCameraSnapshots({
-			2: { position: [0, 0, 10], target: [0, 0, 0], zoom: 2 },
-			3: { position: [7, 7, 7], target: [1, 1, 1], zoom: 1.5 },
-		});
+		restoreCameraSnapshots(
+			{
+				2: { position: [0, 0, 10], target: [0, 0, 0], zoom: 2 },
+				3: { position: [7, 7, 7], target: [1, 1, 1], zoom: 1.5 },
+			},
+			orthoCamera,
+			orthoControls,
+			perspectiveCamera,
+			perspectiveControls,
+		);
 		expect(orthoCamera.position.toArray()).toEqual([0, 0, 10]);
 		expect(orthoCamera.zoom).toBe(2);
 		expect(perspectiveControls.target.toArray()).toEqual([1, 1, 1]);

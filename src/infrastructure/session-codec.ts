@@ -1,13 +1,13 @@
 import type { Dimension, MatrixFor, VectorFor } from "../domain/math";
-import { MAX_WORKSPACE_NODES } from "../domain/state";
+import { MAX_WORKSPACE_NODES } from "../domain/workspace";
 import type { AnimationMode } from "../domain/animation";
 import {
 	MAX_ABSOLUTE_INPUT_VALUE,
 	MAX_MATRIX_DURATION_MS,
-	MAX_RENDER_TRANSFORM_VALUE,
 	MAX_SESSION_ELAPSED_MS,
 	MIN_MATRIX_DURATION_MS,
 } from "../domain/policy";
+import { MAX_RENDER_TRANSFORM_VALUE } from "../rendering/capability";
 import type {
 	CameraSnapshot,
 	SessionSnapshot,
@@ -35,14 +35,13 @@ type JsonValue =
 	| JsonValue[]
 	| { [key: string]: JsonValue };
 
-type SharePayloadVersion = 1 | 2;
-const CURRENT_SHARE_PAYLOAD_VERSION: SharePayloadVersion = 2;
+type SharePayloadVersion = 1 | 2 | 3;
+const CURRENT_SHARE_PAYLOAD_VERSION: SharePayloadVersion = 3;
 
 export async function encodeShareSession(
 	session: SessionSnapshot,
 ): Promise<string> {
 	const serialized = encodeCurrentVersion(session);
-	decodeVersionedTuple(serialized);
 	const json = JSON.stringify(serialized);
 	const bytes = new TextEncoder().encode(json);
 	const plain = `1j${toBase64Url(bytes)}`;
@@ -83,26 +82,36 @@ export async function decodeShareSession(
 }
 
 function encodeCurrentVersion(session: SessionSnapshot): JsonValue {
-	return encodeVersion2(session);
+	return encodeVersion3(session);
 }
 
-function encodeVersion2(session: SessionSnapshot): JsonValue {
+function encodeVersion3(session: SessionSnapshot): JsonValue {
 	const workspace = (dimension: Dimension): JsonValue => {
 		const item = session.workspaces[dimension];
 		return [
 			item.matrices.map((matrix) => [
 				matrix.label,
 				matrix.sources,
-				matrix.values,
 				matrix.durationMs,
 			]),
 			item.vectors.map((vector) => [
 				vector.label,
 				vector.sources,
-				vector.values,
 				vector.color,
 			]),
 			item.appliedTransform,
+			[
+				item.lastValidEvaluation.matrices.map((matrix) => [
+					matrix.label,
+					matrix.values,
+					matrix.durationMs,
+				]),
+				item.lastValidEvaluation.vectors.map((vector) => [
+					vector.label,
+					vector.values,
+					vector.color,
+				]),
+			],
 		];
 	};
 	const camera = (dimension: Dimension): JsonValue => {
@@ -132,6 +141,8 @@ function decodeVersionedTuple(value: unknown): SessionSnapshot {
 			return decodeVersion1(value);
 		case 2:
 			return decodeVersion2(value);
+		case 3:
+			return decodeVersion3(value);
 		default:
 			throw new Error("Unsupported share payload");
 	}
@@ -151,8 +162,8 @@ function decodeVersion1(value: unknown): SessionSnapshot {
 		mode,
 		paused,
 		elapsedMs: finiteNumber(root[5], 0, MAX_SESSION_ELAPSED_MS),
-		workspace2: parseWorkspace(root[6], 2),
-		workspace3: parseWorkspace(root[7], 3),
+		workspace2: parseLegacyWorkspace(root[6], 2),
+		workspace3: parseLegacyWorkspace(root[7], 3),
 		camera2: parseCamera(root[8]),
 		camera3: parseCamera(root[9]),
 	});
@@ -172,6 +183,22 @@ function decodeVersion2(value: unknown): SessionSnapshot {
 		showGrid,
 		mode,
 		paused,
+		elapsedMs: finiteNumber(root[6], 0, MAX_SESSION_ELAPSED_MS),
+		workspace2: parseLegacyWorkspace(root[7], 2),
+		workspace3: parseLegacyWorkspace(root[8], 3),
+		camera2: parseCamera(root[9]),
+		camera3: parseCamera(root[10]),
+	});
+}
+
+function decodeVersion3(value: unknown): SessionSnapshot {
+	const root = tuple(value, 11);
+	return createDecodedSession({
+		activeDimension: dimension(root[1]),
+		showBasis: flag(root[2]),
+		showGrid: flag(root[3]),
+		mode: flag(root[4]) ? "composed" : "steps",
+		paused: flag(root[5]),
 		elapsedMs: finiteNumber(root[6], 0, MAX_SESSION_ELAPSED_MS),
 		workspace2: parseWorkspace(root[7], 2),
 		workspace3: parseWorkspace(root[8], 3),
@@ -218,7 +245,7 @@ function createDecodedSession({
 	};
 }
 
-function parseWorkspace<D extends Dimension>(
+function parseLegacyWorkspace<D extends Dimension>(
 	value: unknown,
 	dimensionValue: D,
 ): WorkspaceSnapshot<D> {
@@ -267,11 +294,101 @@ function parseWorkspace<D extends Dimension>(
 		MAX_RENDER_TRANSFORM_VALUE,
 	) as MatrixFor<D>;
 	const workspace: WorkspaceSnapshot<D> = {
+		matrices: matrices.map((matrix) => ({
+			label: matrix.label,
+			sources: matrix.sources,
+			durationMs: matrix.durationMs,
+		})),
+		vectors: vectors.map((vector) => ({
+			label: vector.label,
+			sources: vector.sources,
+			color: vector.color,
+		})),
+		appliedTransform,
+		lastValidEvaluation: {
+			matrices: matrices.map((matrix) => ({
+				label: matrix.label,
+				values: matrix.values,
+				durationMs: matrix.durationMs,
+			})),
+			vectors: vectors.map((vector) => ({
+				label: vector.label,
+				values: vector.values,
+				color: vector.color,
+			})),
+		},
+	};
+	return workspace;
+}
+
+function parseWorkspace<D extends Dimension>(
+	value: unknown,
+	dimensionValue: D,
+): WorkspaceSnapshot<D> {
+	const item = tuple(value, 4);
+	const matrices = boundedArray(item[0]).map((entry) => {
+		const matrix = tuple(entry, 3);
+		return {
+			label: matchedString(matrix[0], MATRIX_LABEL, 16),
+			sources: expressions(matrix[1], dimensionValue ** 2),
+			durationMs: finiteNumber(
+				matrix[2],
+				MIN_MATRIX_DURATION_MS,
+				MAX_MATRIX_DURATION_MS,
+			),
+		};
+	});
+	const vectors = boundedArray(item[1]).map((entry) => {
+		const vector = tuple(entry, 3);
+		return {
+			label: matchedString(vector[0], VECTOR_LABEL, 4),
+			sources: expressions(vector[1], dimensionValue),
+			color: matchedString(vector[2], COLOR, 7).toLowerCase(),
+		};
+	});
+	const appliedTransform = numbers(
+		item[2],
+		dimensionValue ** 2,
+		MAX_RENDER_TRANSFORM_VALUE,
+	) as MatrixFor<D>;
+	const evaluation = tuple(item[3], 2);
+	const evaluatedMatrices = boundedArray(evaluation[0]).map((entry) => {
+		const matrix = tuple(entry, 3);
+		return {
+			label: matchedString(matrix[0], MATRIX_LABEL, 16),
+			values: numbers(
+				matrix[1],
+				dimensionValue ** 2,
+				MAX_ABSOLUTE_INPUT_VALUE,
+			) as MatrixFor<D>,
+			durationMs: finiteNumber(
+				matrix[2],
+				MIN_MATRIX_DURATION_MS,
+				MAX_MATRIX_DURATION_MS,
+			),
+		};
+	});
+	const evaluatedVectors = boundedArray(evaluation[1]).map((entry) => {
+		const vector = tuple(entry, 3);
+		return {
+			label: matchedString(vector[0], VECTOR_LABEL, 4),
+			values: numbers(
+				vector[1],
+				dimensionValue,
+				MAX_ABSOLUTE_INPUT_VALUE,
+			) as VectorFor<D>,
+			color: matchedString(vector[2], COLOR, 7).toLowerCase(),
+		};
+	});
+	return {
 		matrices,
 		vectors,
 		appliedTransform,
+		lastValidEvaluation: {
+			matrices: evaluatedMatrices,
+			vectors: evaluatedVectors,
+		},
 	};
-	return workspace;
 }
 
 function parseCamera(value: unknown): CameraSnapshot {

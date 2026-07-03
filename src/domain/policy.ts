@@ -1,10 +1,6 @@
 export const MAX_WORKSPACE_NODES = 64;
 export const MAX_ABSOLUTE_INPUT_VALUE = 100;
 
-// WebGL stores transforms as Float32 values. The margin leaves room for
-// subsequent vector calculations.
-export const MAX_RENDER_TRANSFORM_VALUE = 1e30;
-
 export const MIN_MATRIX_DURATION_MS = 100;
 export const MAX_MATRIX_DURATION_MS = 3_000;
 export const MAX_SESSION_ELAPSED_MS =

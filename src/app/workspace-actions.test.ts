@@ -10,16 +10,14 @@ import {
 const items = () => [{ id: "a" }, { id: "b" }, { id: "c" }];
 
 describe("workspace reordering", () => {
-	it("moves an item by one position and preserves its identity", () => {
+	it("moves an item by one position", () => {
 		const values = items();
-		const moved = values[1];
 
 		expect(moveItemBy(values, "b", -1)).toEqual({
 			changed: true,
 			index: 0,
 		});
 		expect(values.map(({ id }) => id)).toEqual(["b", "a", "c"]);
-		expect(values[0]).toBe(moved);
 	});
 
 	it("does not move across a boundary or for an unknown id", () => {

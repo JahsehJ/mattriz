@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createInitialState } from "../domain/state";
+import { createInitialState } from "../app/state";
 import { UiController } from "./ui-controller";
 
 function toggleElement(dataset: Record<string, string> = {}) {
@@ -94,7 +94,7 @@ describe("UI controller", () => {
 		["paused", "resume", "resumeAnimation"],
 	] as const)("renders %s playback state", (status, text, label) => {
 		const { controller, state, play } = setup();
-		state.animation.status = status;
+		state.animation = { ...state.animation, status };
 
 		controller.updatePlaybackControl();
 

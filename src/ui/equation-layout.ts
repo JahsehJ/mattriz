@@ -1,5 +1,5 @@
 export function groupEntriesByColumn(
-	values: string[],
+	values: readonly string[],
 	columnCount: number,
 ): string[][] {
 	return Array.from({ length: columnCount }, (_, column) =>
@@ -8,8 +8,8 @@ export function groupEntriesByColumn(
 }
 
 export function renderEntryColumnTemplate(
-	columns: string[][],
-	trailingTracks: string[] = [],
+	columns: readonly (readonly string[])[],
+	trailingTracks: readonly string[] = [],
 ): string {
 	const tracks = columns.map((values) => {
 		const width = Math.min(
@@ -22,9 +22,9 @@ export function renderEntryColumnTemplate(
 }
 
 export function applyEntryColumnTemplate(
-	elements: HTMLElement[],
-	columns: string[][],
-	trailingTracks: string[] = [],
+	elements: readonly HTMLElement[],
+	columns: readonly (readonly string[])[],
+	trailingTracks: readonly string[] = [],
 ): void {
 	const template = renderEntryColumnTemplate(columns, trailingTracks);
 	elements.forEach((element) => {

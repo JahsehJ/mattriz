@@ -51,10 +51,13 @@ describe("drag target selection", () => {
 
 describe("drag interaction lifecycle", () => {
 	it("moves a matrix to the selected edge and clears drag state", () => {
+		const listeners = new Map<string, EventListener>();
 		const first = item("a", 0);
 		const second = item("b", 120);
 		const stack = {
-			addEventListener: vi.fn(),
+			addEventListener: vi.fn((type: string, listener: EventListener) => {
+				listeners.set(type, listener);
+			}),
 			removeEventListener: vi.fn(),
 			querySelector: vi.fn(() => null),
 			querySelectorAll: vi.fn(() => [first, second]),
@@ -65,10 +68,6 @@ describe("drag interaction lifecycle", () => {
 			moveVector: vi.fn(),
 			createVectorPreview: vi.fn(),
 		});
-		const internals = controller as unknown as {
-			handleDragStart(event: DragEvent): void;
-			handleDrop(event: DragEvent): void;
-		};
 		const source = {
 			closest: (selector: string) =>
 				selector.includes(".matrix-item") ? first : null,
@@ -84,8 +83,8 @@ describe("drag interaction lifecycle", () => {
 			preventDefault: preventDrop,
 		} as unknown as DragEvent;
 
-		internals.handleDragStart(start);
-		internals.handleDrop(drop);
+		listeners.get("dragstart")!(start);
+		listeners.get("drop")!(drop);
 
 		expect(moveMatrix).toHaveBeenCalledWith("a", "b", "after");
 		expect(preventDrop).toHaveBeenCalledOnce();
@@ -93,22 +92,21 @@ describe("drag interaction lifecycle", () => {
 	});
 
 	it("rejects drags started from interactive controls", () => {
+		const listeners = new Map<string, EventListener>();
 		const stack = {
-			addEventListener: vi.fn(),
+			addEventListener: vi.fn((type: string, listener: EventListener) => {
+				listeners.set(type, listener);
+			}),
 			removeEventListener: vi.fn(),
 		} as unknown as HTMLElement;
-		const controller = new DragController(stack, {
+		new DragController(stack, {
 			moveMatrix: vi.fn(),
 			moveVector: vi.fn(),
 			createVectorPreview: vi.fn(),
 		});
 		const preventDefault = vi.fn();
 
-		(
-			controller as unknown as {
-				handleDragStart(event: DragEvent): void;
-			}
-		).handleDragStart({
+		listeners.get("dragstart")!({
 			target: {
 				closest: (selector: string) =>
 					selector.includes("input") ? {} : null,

@@ -1,12 +1,12 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import {
 	MAX_WORKSPACE_NODES,
-	createInitialState,
 	createMatrixNode,
 	createVectorNode,
-	getNumericCellError,
-	type NumericCell,
-} from "../domain/state";
+	replaceWorkspaceMatrices,
+	replaceWorkspaceVectors,
+} from "../domain/workspace";
+import { createInitialState } from "./state";
 import { WorkspaceController } from "./workspace-controller";
 
 beforeAll(() => {
@@ -15,24 +15,33 @@ beforeAll(() => {
 
 function setup() {
 	const state = createInitialState();
+	const workspace = state.workspaces[3];
+	const renderedResultColumns = workspace.lastValidEvaluation.vectors.map(
+		() => ({}),
+	);
 	const durationOutput = { textContent: "" };
 	const stack = {
-		querySelector: vi.fn(() => durationOutput),
-		querySelectorAll: vi.fn(() => []),
+		querySelector: vi.fn((selector: string) =>
+			selector.startsWith("[data-duration-output")
+				? durationOutput
+				: null,
+		),
+		querySelectorAll: vi.fn((selector: string) =>
+			selector === ".result-column-label" ? renderedResultColumns : [],
+		),
 	} as unknown as HTMLElement;
 	const root = {
 		querySelector: vi.fn(() => null),
 	} as unknown as HTMLElement;
 	const options = {
 		getState: () => state,
-		resetAnimation: vi.fn(),
-		updateResults: vi.fn(),
+		commit: vi.fn(),
 		updateMatrixWidth: vi.fn(),
 		updateVectorWidths: vi.fn(),
 	};
 	return {
 		state,
-		workspace: state.workspaces[3],
+		workspace,
 		controller: new WorkspaceController(root, stack, vi.fn(), options),
 		options,
 		durationOutput,
@@ -66,25 +75,29 @@ describe("workspace collections", () => {
 			originalVector.id,
 			"before",
 		);
-		expect(workspace.matrices[0]).toBe(originalMatrix);
+		expect(workspace.matrices[0]).toStrictEqual(originalMatrix);
 		expect(workspace.vectors[0].label).toBe("v2");
 
 		controller.deleteMatrix(originalMatrix.id);
 		controller.deleteVector(originalVector.id);
 		expect(workspace.matrices).toHaveLength(1);
 		expect(workspace.vectors).toHaveLength(1);
-		expect(options.resetAnimation).toHaveBeenCalledTimes(6);
+		expect(options.commit).toHaveBeenCalled();
 	});
 
 	it("enforces the shared node limit", () => {
 		const { controller, workspace, options } = setup();
-		workspace.matrices = Array.from(
-			{ length: MAX_WORKSPACE_NODES },
-			(_, index) => createMatrixNode(3, `M${index}`),
+		replaceWorkspaceMatrices(
+			workspace,
+			Array.from({ length: MAX_WORKSPACE_NODES }, (_, index) =>
+				createMatrixNode(3, `M${index}`),
+			),
 		);
-		workspace.vectors = Array.from(
-			{ length: MAX_WORKSPACE_NODES },
-			(_, index) => createVectorNode(3, `v${index}`, "#000"),
+		replaceWorkspaceVectors(
+			workspace,
+			Array.from({ length: MAX_WORKSPACE_NODES }, (_, index) =>
+				createVectorNode(3, `v${index}`, "#000"),
+			),
 		);
 
 		controller.addMatrix();
@@ -92,7 +105,7 @@ describe("workspace collections", () => {
 
 		expect(workspace.matrices).toHaveLength(MAX_WORKSPACE_NODES);
 		expect(workspace.vectors).toHaveLength(MAX_WORKSPACE_NODES);
-		expect(options.resetAnimation).not.toHaveBeenCalled();
+		expect(options.commit).not.toHaveBeenCalled();
 	});
 
 	it("adds valid presets and ignores unknown presets", () => {
@@ -102,7 +115,28 @@ describe("workspace collections", () => {
 		controller.addMatrixPreset("rotate-z-45");
 
 		expect(workspace.matrices).toHaveLength(2);
-		expect(options.resetAnimation).toHaveBeenCalledOnce();
+		expect(options.commit).toHaveBeenCalledOnce();
+	});
+
+	it("assigns distinct sequential labels to every eigenbasis vector", () => {
+		const { controller, workspace, options } = setup();
+
+		controller.addEigenbasis();
+
+		expect(workspace.vectors.map(({ label }) => label)).toEqual([
+			"v1",
+			"v2",
+			"v3",
+			"v4",
+		]);
+		expect(new Set(workspace.vectors.map(({ id }) => id)).size).toBe(4);
+		expect(workspace.vectors.map(({ color }) => color)).toEqual([
+			"#f4b740",
+			"#5bd8a6",
+			"#ef6f6c",
+			"#8fb4ff",
+		]);
+		expect(options.commit).toHaveBeenCalledOnce();
 	});
 });
 
@@ -121,17 +155,43 @@ describe("workspace inputs", () => {
 		controller.handleInput(matrixInput);
 		controller.handleInput(vectorInput);
 
-		expect(workspace.matrices[0].entries[0]).toEqual({
-			source: "sqrt(4)",
-			value: 2,
-		});
-		expect(workspace.vectors[0].coordinates[1]).toEqual({
-			source: "3/2",
-			value: 1.5,
-		});
+		expect(workspace.matrices[0].entries[0]).toBe("sqrt(4)");
+		expect(workspace.vectors[0].coordinates[1]).toBe("3/2");
+		expect(workspace.lastValidEvaluation.matrices[0].values[0]).toBe(2);
+		expect(workspace.lastValidEvaluation.vectors[0].coordinates[1]).toBe(
+			1.5,
+		);
 		expect(options.updateMatrixWidth).toHaveBeenCalledWith(matrixInput);
 		expect(options.updateVectorWidths).toHaveBeenCalledWith(vectorInput);
-		expect(options.updateResults).toHaveBeenCalledTimes(2);
+		expect(options.commit).toHaveBeenLastCalledWith({
+			renderStack: false,
+			updateResults: true,
+		});
+	});
+
+	it("re-renders stale result columns when validity returns", () => {
+		const { controller, workspace, options } = setup();
+		const matrixInput = {
+			name: `matrix-${workspace.matrices[0].id}-entry-0`,
+			dataset: {
+				matrixId: workspace.matrices[0].id,
+				entryIndex: "0",
+			},
+			value: "",
+			selectionStart: 0,
+			selectionEnd: 0,
+		} as unknown as HTMLInputElement;
+
+		controller.handleInput(matrixInput);
+		controller.addVector();
+		matrixInput.value = "1";
+		controller.handleInput(matrixInput);
+
+		expect(workspace.vectors).toHaveLength(2);
+		expect(options.commit).toHaveBeenLastCalledWith({
+			renderStack: true,
+			updateResults: false,
+		});
 	});
 
 	it("clamps animation durations and updates their output", () => {
@@ -145,41 +205,6 @@ describe("workspace inputs", () => {
 
 		expect(workspace.matrices[0].durationMs).toBe(3000);
 		expect(durationOutput.textContent).toBe("3000ms");
-		expect(options.resetAnimation).toHaveBeenCalledWith(false);
-	});
-
-	it("preserves overflow errors on every rejected source/value mismatch", () => {
-		const cells: NumericCell[] = [
-			{ source: "1", value: 1 },
-			{ source: "1", value: 1 },
-		];
-		const { controller } = setup();
-		const updateNumericDraft = (
-			controller as unknown as {
-				updateNumericDraft(
-					cells: NumericCell[],
-					index: number,
-					value: string,
-					inputSelector: string,
-					commit: (values: number[]) => boolean,
-				): void;
-			}
-		).updateNumericDraft.bind(controller);
-
-		updateNumericDraft(cells, 0, "2", "input", () => false);
-		updateNumericDraft(cells, 1, "1", "input", () => false);
-
-		expect(cells).toEqual([
-			{
-				source: "2",
-				value: 1,
-				error: "constraint-rejected",
-			},
-			{ source: "1", value: 1 },
-		]);
-		expect(cells.map(getNumericCellError)).toEqual([
-			"constraint-rejected",
-			null,
-		]);
+		expect(options.commit).toHaveBeenCalledWith({ renderStack: false });
 	});
 });

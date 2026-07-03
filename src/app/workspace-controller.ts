@@ -4,28 +4,16 @@ import {
 } from "../domain/math";
 import { getMatrixPresets } from "../domain/presets";
 import {
-	type AppState,
-	type AnyVectorNode,
 	canAddWorkspaceNodes,
 	createMatrixNode,
 	createVectorNode,
-	getTotalTransform,
-	getWorkspace,
-	replaceWorkspaceMatrices,
 	replaceWorkspaceVectors,
+	setMatrixEntrySource,
 	setMatrixDuration,
-	validateMatrixValuesUpdate,
-} from "../domain/state";
-import {
-	type NumericCell,
-	type NumericCommitResult,
-	getNumericCellError,
-	updateNumericCellDraft,
-} from "../domain/numeric-editor";
-import {
-	canRenderMatrixUpdate,
-	canRenderWorkspace,
-} from "../rendering/capability";
+	setVectorCoordinateSource,
+} from "../domain/workspace";
+import { type AppState, getWorkspace } from "./state";
+import { replaceWorkspaceMatrices } from "../domain/workspace";
 import type { Translate } from "../i18n";
 import {
 	type MoveDirection,
@@ -46,8 +34,7 @@ const VECTOR_COLORS = [
 
 interface WorkspaceControllerOptions {
 	getState(): AppState;
-	resetAnimation(renderStack?: boolean): void;
-	updateResults(): void;
+	commit(options?: { renderStack?: boolean; updateResults?: boolean }): void;
 	updateMatrixWidth(input: HTMLInputElement): void;
 	updateVectorWidths(input: HTMLInputElement): void;
 }
@@ -65,16 +52,18 @@ export class WorkspaceController {
 		const matrix = createMatrixNode(
 			workspace.dimension,
 			nextMatrixLabel(workspace.matrices.map((matrix) => matrix.label)),
+			undefined,
+			undefined,
+			crypto.randomUUID(),
 		);
 		if (
-			!replaceWorkspaceMatrices(
-				workspace,
-				[matrix, ...workspace.matrices],
-				canRenderWorkspace,
-			).accepted
+			!replaceWorkspaceMatrices(workspace, [
+				matrix,
+				...workspace.matrices,
+			])
 		)
 			return;
-		this.options.resetAnimation();
+		this.options.commit();
 	}
 
 	addVector(): void {
@@ -83,13 +72,13 @@ export class WorkspaceController {
 			workspace.dimension,
 			nextVectorLabel(workspace.vectors.map((vector) => vector.label)),
 			this.nextVectorColor,
+			undefined,
+			undefined,
+			crypto.randomUUID(),
 		);
-		if (
-			!replaceWorkspaceVectors(workspace, [...workspace.vectors, vector])
-				.accepted
-		)
+		if (!replaceWorkspaceVectors(workspace, [...workspace.vectors, vector]))
 			return;
-		this.options.resetAnimation();
+		this.options.commit();
 	}
 
 	addMatrixPreset(presetId: string): void {
@@ -103,24 +92,24 @@ export class WorkspaceController {
 			nextMatrixLabel(workspace.matrices.map((matrix) => matrix.label)),
 			preset.values,
 			preset.draftValues,
+			crypto.randomUUID(),
 		);
 		if (
-			!replaceWorkspaceMatrices(
-				workspace,
-				[matrix, ...workspace.matrices],
-				canRenderWorkspace,
-			).accepted
+			!replaceWorkspaceMatrices(workspace, [
+				matrix,
+				...workspace.matrices,
+			])
 		) {
 			return;
 		}
-		this.options.resetAnimation();
+		this.options.commit();
 	}
 
 	addEigenbasis(): void {
 		const workspace = this.workspace;
 		const result = analyzeRealEigenbasis(
 			workspace.dimension,
-			getTotalTransform(workspace),
+			workspace.lastValidEvaluation.totalTransform,
 		);
 		const basis = result.kind === "basis" ? result.vectors : null;
 		if (!basis || !canAddWorkspaceNodes(workspace, "vectors", basis.length))
@@ -130,17 +119,16 @@ export class WorkspaceController {
 			vectors.push(
 				createVectorNode(
 					workspace.dimension,
-					nextVectorLabel(
-						workspace.vectors.map((vector) => vector.label),
-					),
-					this.nextVectorColor,
+					nextVectorLabel(vectors.map((vector) => vector.label)),
+					VECTOR_COLORS[vectors.length % VECTOR_COLORS.length],
 					components,
 					components.map(formatInputNumber),
-				) as AnyVectorNode,
+					crypto.randomUUID(),
+				),
 			);
 		}
-		if (!replaceWorkspaceVectors(workspace, vectors).accepted) return;
-		this.options.resetAnimation();
+		if (!replaceWorkspaceVectors(workspace, vectors)) return;
+		this.options.commit();
 	}
 
 	addRepresentativeEigenvector(): void {
@@ -148,7 +136,7 @@ export class WorkspaceController {
 		if (!canAddWorkspaceNodes(workspace, "vectors")) return;
 		const result = analyzeRepresentativeRealEigenvector(
 			workspace.dimension,
-			getTotalTransform(workspace),
+			workspace.lastValidEvaluation.totalTransform,
 		);
 		if (result.kind !== "vector") return;
 		const vector = result.vector;
@@ -158,15 +146,16 @@ export class WorkspaceController {
 			this.nextVectorColor,
 			vector,
 			vector.map(formatInputNumber),
+			crypto.randomUUID(),
 		);
 		if (
 			!replaceWorkspaceVectors(workspace, [
 				...workspace.vectors,
 				vectorNode,
-			]).accepted
+			])
 		)
 			return;
-		this.options.resetAnimation();
+		this.options.commit();
 	}
 
 	deleteMatrix(id: string): void {
@@ -174,12 +163,8 @@ export class WorkspaceController {
 		const matrices = workspace.matrices.filter(
 			(matrix) => matrix.id !== id,
 		);
-		if (
-			!replaceWorkspaceMatrices(workspace, matrices, canRenderWorkspace)
-				.accepted
-		)
-			return;
-		this.options.resetAnimation();
+		if (!replaceWorkspaceMatrices(workspace, matrices)) return;
+		this.options.commit();
 	}
 
 	deleteVector(id: string): void {
@@ -188,30 +173,26 @@ export class WorkspaceController {
 			!replaceWorkspaceVectors(
 				workspace,
 				workspace.vectors.filter((vector) => vector.id !== id),
-			).accepted
+			)
 		)
 			return;
-		this.options.resetAnimation();
+		this.options.commit();
 	}
 
 	moveMatrix(id: string, targetId: string, side: "before" | "after"): void {
 		const workspace = this.workspace;
 		const matrices = [...workspace.matrices];
 		if (!moveItemTo(matrices, id, targetId, side).changed) return;
-		if (
-			!replaceWorkspaceMatrices(workspace, matrices, canRenderWorkspace)
-				.accepted
-		)
-			return;
-		this.options.resetAnimation();
+		if (!replaceWorkspaceMatrices(workspace, matrices)) return;
+		this.options.commit();
 	}
 
 	moveVector(id: string, targetId: string, side: "before" | "after"): void {
 		const workspace = this.workspace;
 		const vectors = [...workspace.vectors];
 		if (!moveItemTo(vectors, id, targetId, side).changed) return;
-		if (!replaceWorkspaceVectors(workspace, vectors).accepted) return;
-		this.options.resetAnimation();
+		if (!replaceWorkspaceVectors(workspace, vectors)) return;
+		this.options.commit();
 	}
 
 	moveFocusedItem(element: HTMLElement, direction: MoveDirection): void {
@@ -227,12 +208,12 @@ export class WorkspaceController {
 			: moveItemBy(vectors, id, direction);
 		if (!result.changed) return;
 		const accepted = matrixId
-			? replaceWorkspaceMatrices(workspace, matrices, canRenderWorkspace)
+			? replaceWorkspaceMatrices(workspace, matrices)
 			: replaceWorkspaceVectors(workspace, vectors);
-		if (!accepted.accepted) return;
+		if (!accepted) return;
 		const items = matrixId ? workspace.matrices : workspace.vectors;
 		const label = items[result.index].label;
-		this.options.resetAnimation();
+		this.options.commit();
 
 		const selector = matrixId
 			? `.matrix-item[data-matrix-id="${CSS.escape(id)}"]`
@@ -261,6 +242,7 @@ export class WorkspaceController {
 				input.dataset.matrixId,
 				Number(input.dataset.entryIndex),
 				input.value,
+				input,
 			);
 			return;
 		}
@@ -273,76 +255,103 @@ export class WorkspaceController {
 				input.dataset.vectorId,
 				Number(input.dataset.componentIndex),
 				input.value,
+				input,
 			);
 		}
 	}
 
-	private updateMatrixEntry(id: string, index: number, value: string): void {
-		const matrix = this.workspace.matrices.find((item) => item.id === id);
-		if (!matrix) return;
-		this.updateNumericDraft(
-			matrix.entries,
-			index,
-			value,
-			`input[data-matrix-id="${CSS.escape(id)}"]`,
-			(values) =>
-				validateMatrixValuesUpdate(
-					this.workspace,
-					id,
-					values,
-					(candidate) =>
-						canRenderMatrixUpdate(this.workspace, id, candidate),
-				),
-		);
+	private updateMatrixEntry(
+		id: string,
+		index: number,
+		value: string,
+		input: HTMLInputElement,
+	): void {
+		if (!setMatrixEntrySource(this.workspace, id, index, value)) return;
+		this.finishNumericEdit(input);
 	}
 
 	private updateVectorComponent(
 		id: string,
 		index: number,
 		value: string,
+		input: HTMLInputElement,
 	): void {
-		const vector = this.workspace.vectors.find((item) => item.id === id);
-		if (!vector) return;
-		this.updateNumericDraft(
-			vector.coordinates,
-			index,
-			value,
-			`input[data-vector-id="${CSS.escape(id)}"]`,
-			() => true,
-		);
+		if (!setVectorCoordinateSource(this.workspace, id, index, value))
+			return;
+		this.finishNumericEdit(input);
 	}
 
 	private updateDuration(id: string, value: number): void {
-		const matrix = this.workspace.matrices.find((item) => item.id === id);
-		if (!matrix || !setMatrixDuration(this.workspace, id, value)) return;
-		this.options.resetAnimation(false);
+		if (!setMatrixDuration(this.workspace, id, value)) return;
+		this.options.commit({ renderStack: false });
 		const output = this.stack.querySelector<HTMLElement>(
 			`[data-duration-output="${CSS.escape(id)}"]`,
 		);
-		if (output) output.textContent = `${matrix.durationMs}ms`;
+		const duration = this.workspace.matrices.find(
+			(item) => item.id === id,
+		)?.durationMs;
+		if (output && duration !== undefined)
+			output.textContent = `${duration}ms`;
 	}
 
-	private updateNumericDraft(
-		cells: NumericCell[],
-		index: number,
-		value: string,
-		inputSelector: string,
-		commit: (values: number[]) => NumericCommitResult | boolean,
-	): void {
-		if (!cells[index]) return;
-		const committed = updateNumericCellDraft(cells, index, value, commit);
-		this.stack
-			.querySelectorAll<HTMLInputElement>(inputSelector)
-			.forEach((input, inputIndex) => {
-				input.toggleAttribute(
-					"aria-invalid",
-					cells[inputIndex] !== undefined &&
-						getNumericCellError(cells[inputIndex]) !== null,
+	private finishNumericEdit(editedInput: HTMLInputElement): void {
+		const validity = this.workspace.validity;
+		this.workspace.matrices.forEach((matrix) => {
+			this.stack
+				.querySelectorAll<HTMLInputElement>(
+					`input[data-matrix-id="${CSS.escape(matrix.id)}"]`,
+				)
+				.forEach((input, index) =>
+					input.toggleAttribute(
+						"aria-invalid",
+						validity.matrixEntries[matrix.id]?.[index] === false,
+					),
 				);
-			});
-		if (!committed) return;
-		this.options.resetAnimation(false);
-		this.options.updateResults();
+		});
+		this.workspace.vectors.forEach((vector) => {
+			this.stack
+				.querySelectorAll<HTMLInputElement>(
+					`input[data-vector-id="${CSS.escape(vector.id)}"]`,
+				)
+				.forEach((input, index) =>
+					input.toggleAttribute(
+						"aria-invalid",
+						validity.vectorCoordinates[vector.id]?.[index] ===
+							false,
+					),
+				);
+		});
+		const resultStructureChanged =
+			validity.valid &&
+			this.stack.querySelectorAll(".result-column-label").length !==
+				this.workspace.lastValidEvaluation.vectors.length;
+		this.options.commit({
+			renderStack: resultStructureChanged,
+			updateResults: validity.valid && !resultStructureChanged,
+		});
+		if (resultStructureChanged) this.restoreEditedInput(editedInput);
+		this.stack
+			.querySelectorAll<HTMLElement>(
+				".equation-equals, .result-matrix-card",
+			)
+			.forEach((element) =>
+				element.toggleAttribute("data-stale", !validity.valid),
+			);
+	}
+
+	private restoreEditedInput(input: HTMLInputElement): void {
+		const replacement = this.stack.querySelector<HTMLInputElement>(
+			`input[name=${CSS.escape(input.name)}]`,
+		);
+		if (!replacement) return;
+		replacement.focus();
+		if (input.selectionStart === null || input.selectionEnd === null)
+			return;
+		replacement.setSelectionRange(
+			input.selectionStart,
+			input.selectionEnd,
+			input.selectionDirection ?? undefined,
+		);
 	}
 
 	private get workspace() {
