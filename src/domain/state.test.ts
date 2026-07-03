@@ -13,6 +13,7 @@ import {
 	getAnimatedTransform,
 	getAnimationProgress,
 	getMatrixDuration,
+	hasSafeComposedTransform,
 	getRenderState,
 	getStepTransform,
 	getTransformedVectors,
@@ -206,7 +207,9 @@ describe("result derivation", () => {
 
 		const matrix3 = createMatrixNode(3, "A", [1, 2, 0, 0, 1, 3, 4, 0, 1]);
 		const vector3 = createVectorNode(3, "v1", "#fff");
-		vector3.components = [1, 2, 3];
+		vector3.coordinates.forEach((coordinate, index) => {
+			coordinate.value = [1, 2, 3][index];
+		});
 		const workspace3: Workspace = {
 			dimension: 3,
 			matrices: [matrix3],
@@ -216,5 +219,25 @@ describe("result derivation", () => {
 
 		expect(getTransformedVectors(workspace2)).toEqual([[2, 3]]);
 		expect(getTransformedVectors(workspace3)).toEqual([[5, 11, 7]]);
+	});
+
+	it("rejects composed transforms outside the WebGL-safe bound", () => {
+		const first = createMatrixNode(2, "A", [1e20, 0, 0, 1]);
+		const second = createMatrixNode(2, "B", [1e20, 0, 0, 1]);
+
+		expect(hasSafeComposedTransform(workspaceWith([first]))).toBe(true);
+		expect(hasSafeComposedTransform(workspaceWith([first, second]))).toBe(
+			false,
+		);
+	});
+
+	it("rejects unsafe step prefixes even when the final transform is safe", () => {
+		const zero = createMatrixNode(2, "A", [0, 0, 0, 0]);
+		const first = createMatrixNode(2, "B", [1e20, 0, 0, 1]);
+		const second = createMatrixNode(2, "C", [1e20, 0, 0, 1]);
+
+		expect(
+			hasSafeComposedTransform(workspaceWith([zero, first, second])),
+		).toBe(false);
 	});
 });

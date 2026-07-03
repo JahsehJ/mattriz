@@ -6,10 +6,13 @@ import {
 	Mat3,
 	MatrixValues,
 	Vec3,
-	VectorValues,
 	applyMatrixToVector,
 } from "../domain/math";
-import { RenderState } from "../domain/state";
+import {
+	type RenderState,
+	type VectorNode,
+	getVectorValues,
+} from "../domain/state";
 import type { CameraSnapshot, CameraSnapshots } from "../domain/share";
 
 const GRID_EXTENT = 240;
@@ -383,12 +386,7 @@ export class MatrixScene {
 	private updateVectors(
 		dimension: Dimension,
 		matrix: MatrixValues,
-		vectors: {
-			id: string;
-			components: VectorValues;
-			color: string;
-			label: string;
-		}[],
+		vectors: VectorNode[],
 	): void {
 		const activeIds = new Set(vectors.map((vector) => vector.id));
 		for (const [id, visual] of this.vectorVisuals) {
@@ -403,7 +401,7 @@ export class MatrixScene {
 			const transformed = applyMatrixToVector(
 				dimension,
 				matrix,
-				vector.components,
+				getVectorValues(vector),
 			);
 			let visual = this.vectorVisuals.get(vector.id);
 			if (!visual) {

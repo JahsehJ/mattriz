@@ -95,13 +95,13 @@ export class EquationRenderer {
       <span class="vector-color-label" aria-hidden="true"></span>
     </div>
     <div class="vector-drag-preview-values">
-      ${vector.draftComponents
-			.slice(0, workspace.dimension)
-			.map(
-				(component) =>
-					`<output class="vector-drag-preview-cell">${escapeHtml(component)}</output>`,
-			)
-			.join("")}
+	      ${vector.coordinates
+				.slice(0, workspace.dimension)
+				.map(
+					(coordinate) =>
+						`<output class="vector-drag-preview-cell">${escapeHtml(coordinate.source)}</output>`,
+				)
+				.join("")}
     </div>
   `;
 		return preview;
@@ -193,7 +193,6 @@ export class EquationRenderer {
 
 	private matrixPresetName(preset: MatrixPreset): string {
 		const t = this.options.t;
-		if (preset.kind === "identity") return t("identityPreset");
 		if (preset.kind === "reflection")
 			return t(
 				this.options.getWorkspace().dimension === 2
@@ -202,7 +201,7 @@ export class EquationRenderer {
 				{ axis: preset.axis },
 			);
 		return t("rotationPreset", {
-			angle: preset.angle ?? 0,
+			angle: preset.angle ?? 45,
 			axis: preset.axis
 				? ` ${t("aroundAxis", { axis: preset.axis })}`
 				: "",

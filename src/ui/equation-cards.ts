@@ -1,4 +1,9 @@
-import type { MatrixNode, Workspace } from "../domain/state";
+import {
+	getNumericCellError,
+	getTransformedVectors,
+	type MatrixNode,
+	type Workspace,
+} from "../domain/state";
 import type { Translate } from "../i18n";
 import {
 	applyEntryColumnTemplate,
@@ -6,7 +11,6 @@ import {
 	renderEntryColumnTemplate,
 } from "./equation-layout";
 import { escapeHtml, renderCloseIcon, renderVectorSymbol } from "./rendering";
-import { getTransformedVectors } from "../domain/state";
 import { formatDisplayNumber } from "./number-formatting";
 
 export function renderMatrixCard(
@@ -17,15 +21,19 @@ export function renderMatrixCard(
 ): string {
 	const columns = workspace.dimension;
 	const template = renderEntryColumnTemplate(
-		groupEntriesByColumn(matrix.draftValues, columns),
+		groupEntriesByColumn(
+			matrix.entries.map((entry) => entry.source),
+			columns,
+		),
 	);
-	const entries = matrix.draftValues
+	const entries = matrix.entries
 		.map(
-			(value, index) => `
+			(entry, index) => `
         <input name="matrix-${matrix.id}-entry-${index}" type="text"
           inputmode="text" maxlength="${maxInputLength}" autocomplete="off"
-          value="${escapeHtml(value)}" data-matrix-id="${matrix.id}"
+          value="${escapeHtml(entry.source)}" data-matrix-id="${matrix.id}"
           data-entry-index="${index}"
+          ${getNumericCellError(entry) ? "aria-invalid" : ""}
           aria-label="${t("matrixEntry", { label: matrix.label, row: Math.floor(index / columns) + 1, column: (index % columns) + 1 })}" />`,
 		)
 		.join("");
@@ -57,7 +65,9 @@ export function renderVectorMatrix(
 	renderAddControl: () => string,
 ): string {
 	const template = renderEntryColumnTemplate(
-		workspace.vectors.map((vector) => vector.draftComponents),
+		workspace.vectors.map((vector) =>
+			vector.coordinates.map((coordinate) => coordinate.source),
+		),
 		["60px"],
 	);
 	const labels = workspace.vectors
@@ -75,8 +85,9 @@ export function renderVectorMatrix(
 		(_, componentIndex) =>
 			`${workspace.vectors
 				.map((vector) => {
-					const value = vector.draftComponents[componentIndex] ?? "0";
-					return `<input name="vector-${vector.id}-component-${componentIndex}" type="text" inputmode="text" maxlength="${maxInputLength}" autocomplete="off" value="${escapeHtml(value)}" data-vector-id="${vector.id}" data-vector-column-id="${vector.id}" data-component-index="${componentIndex}" aria-label="${t("vectorComponent", { label: vector.label, component: componentIndex + 1 })}" />`;
+					const coordinate = vector.coordinates[componentIndex];
+					const value = coordinate?.source ?? "0";
+					return `<input name="vector-${vector.id}-component-${componentIndex}" type="text" inputmode="text" maxlength="${maxInputLength}" autocomplete="off" value="${escapeHtml(value)}" data-vector-id="${vector.id}" data-vector-column-id="${vector.id}" data-component-index="${componentIndex}" ${coordinate && getNumericCellError(coordinate) ? "aria-invalid" : ""} aria-label="${t("vectorComponent", { label: vector.label, component: componentIndex + 1 })}" />`;
 				})
 				.join(
 					"",

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { translate } from ".";
+import { localeMetadata, messages, translate } from ".";
 
 describe("translations", () => {
 	it("translates interface copy into Traditional Chinese", () => {
@@ -16,17 +16,42 @@ describe("translations", () => {
 		).toBe("A 第 2 列第 3 欄");
 	});
 
-	it("localizes share security and clipboard feedback", () => {
-		expect(translate("zh-Hant", "share")).toBe("分享");
-		expect(translate("en", "invalidShareTitle")).toBe(
-			"Invalid shared workspace",
-		);
+	it("uses the same interpolation placeholders in every locale", () => {
+		for (const key of Object.keys(
+			messages.en,
+		) as (keyof typeof messages.en)[]) {
+			expect(placeholders(messages["zh-Hant"][key]), key).toEqual(
+				placeholders(messages.en[key]),
+			);
+		}
 	});
 
-	it("localizes workspace reset confirmation", () => {
-		expect(translate("zh-Hant", "resetWorkspace")).toBe("重設工作區");
-		expect(translate("en", "confirmResetWorkspace")).toBe(
-			"Reset everything",
+	it("keeps locale metadata complete and unambiguous", () => {
+		expect(localeMetadata.map(({ code }) => code).sort()).toEqual(
+			Object.keys(messages).sort(),
 		);
+		expect(new Set(localeMetadata.map(({ code }) => code)).size).toBe(
+			localeMetadata.length,
+		);
+		expect(
+			new Set(
+				localeMetadata.flatMap(({ languageTags }) =>
+					languageTags.map((tag) => tag.toLowerCase()),
+				),
+			).size,
+		).toBe(
+			localeMetadata.reduce(
+				(count, { languageTags }) => count + languageTags.length,
+				0,
+			),
+		);
+		for (const { path, languageTags } of localeMetadata) {
+			expect(path).toMatch(/^(?:\.\/|[a-z0-9-]+\/)$/);
+			expect(languageTags.length).toBeGreaterThan(0);
+		}
 	});
 });
+
+function placeholders(message: string): string[] {
+	return [...message.matchAll(/\{(\w+)\}/g)].map(([, name]) => name).sort();
+}

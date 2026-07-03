@@ -1,17 +1,21 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import localeMetadata from "../src/i18n/locale-metadata.json" with { type: "json" };
 
 const siteUrl = new URL(process.env.VITE_SITE_URL);
 const buildDirectory = process.env.BUILD_OUT_DIR ?? "dist";
 
-const expectedAlternates = new Map([
-	["en", siteUrl.href],
-	["zh-Hant", new URL("zh-hant/", siteUrl).href],
-	["x-default", siteUrl.href],
-]);
+const expectedAlternates = new Map(
+	localeMetadata.map(({ code, path: localePath }) => [
+		code,
+		new URL(localePath, siteUrl).href,
+	]),
+);
+expectedAlternates.set("x-default", siteUrl.href);
 
-for (const relativePath of ["index.html", "zh-hant/index.html"]) {
+for (const { path: localePath } of localeMetadata) {
+	const relativePath = path.join(localePath, "index.html");
 	const documentPath = path.join(buildDirectory, relativePath);
 	const html = await readFile(documentPath, "utf8");
 	const actualAlternates = new Map(

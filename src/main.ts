@@ -12,7 +12,8 @@ import {
 } from "./domain/state";
 import { Dimension } from "./domain/math";
 import { Locale, MessageKey, translate } from "./i18n";
-import { getAppRootUrl, getLocaleFromLanguageTag } from "./app/locale-routing";
+import { getLocaleFromLanguageTag } from "./app/locale-routing";
+import { registerAppServiceWorker } from "./app/service-worker-registration";
 import { decodeShareSession } from "./domain/share";
 import { WorkspaceController } from "./app/workspace-controller";
 import { ShareController } from "./app/share-controller";
@@ -40,6 +41,8 @@ if (!app) {
 const root = app;
 
 root.innerHTML = renderAppShell(t, appVersion);
+root.inert = true;
+root.setAttribute("aria-busy", "true");
 
 const canvas = root.querySelector<HTMLCanvasElement>(".scene-canvas");
 const matrixStack = root.querySelector<HTMLElement>("[data-matrix-stack]");
@@ -306,9 +309,14 @@ function closePopupMenus(): void {
 }
 
 function resetWorkspace(): void {
-	window.location.replace(
-		`${window.location.pathname}${window.location.search}`,
-	);
+	state = createInitialState();
+	scene.resetView(2);
+	scene.resetView(3);
+	resetWorkspaceDialogElement.close();
+	const url = new URL(window.location.href);
+	url.hash = "";
+	window.history.replaceState(window.history.state, "", url);
+	uiController.render();
 }
 
 function resetView(): void {
@@ -363,6 +371,8 @@ async function initialize(): Promise<void> {
 		}
 	}
 	uiController.render();
+	root.inert = false;
+	root.removeAttribute("aria-busy");
 }
 
 void initialize();
@@ -395,13 +405,14 @@ window.addEventListener("pagehide", (event) => {
 
 if (import.meta.env.PROD && "serviceWorker" in navigator) {
 	window.addEventListener("load", () => {
-		const appRootUrl = getAppRootUrl(
-			window.location.href,
-			document.documentElement.dataset.appRootUrl ??
+		void registerAppServiceWorker({
+			currentUrl: window.location.href,
+			baseUrl:
+				document.documentElement.dataset.appRootUrl ??
 				import.meta.env.BASE_URL,
-		);
-		void navigator.serviceWorker.register(new URL("sw.js", appRootUrl), {
-			scope: appRootUrl.pathname,
+			version: appVersion,
+			register: (scriptUrl, options) =>
+				navigator.serviceWorker.register(scriptUrl, options),
 		});
 	});
 }

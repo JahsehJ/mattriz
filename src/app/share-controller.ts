@@ -60,12 +60,16 @@ export class ShareController {
 			const url = new URL(window.location.href);
 			url.hash = `s=${await this.encodeCurrentSession()}`;
 			this.assertUrlFits(url.href);
-			await navigator.clipboard.writeText(url.href);
 			window.history.replaceState(window.history.state, "", url);
-			this.setStatus("copied");
 			this.options.shareLink.value = url.href;
 			this.options.shareDialog.showModal();
 			this.options.shareLink.select();
+			try {
+				await navigator.clipboard.writeText(url.href);
+				this.setStatus("copied");
+			} catch {
+				this.setStatus("copyFailed");
+			}
 		} catch (error) {
 			this.setStatus(errorKey(error));
 		}

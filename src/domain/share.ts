@@ -1,8 +1,14 @@
 import type { Dimension, MatrixValues, VectorValues } from "./math";
 import {
+	MAX_RENDER_TRANSFORM_VALUE,
 	MAX_WORKSPACE_NODES,
+	createNumericCells,
+	getMatrixValues,
+	getVectorValues,
+	hasSafeComposedTransform,
 	type AnimationMode,
 	type AppState,
+	type Workspace,
 } from "./state";
 
 export const MAX_SHARE_FRAGMENT_LENGTH = 32_768;
@@ -39,11 +45,14 @@ type JsonValue =
 	| JsonValue[]
 	| { [key: string]: JsonValue };
 
+type SharePayloadVersion = 1 | 2;
+const CURRENT_SHARE_PAYLOAD_VERSION: SharePayloadVersion = 2;
+
 export async function encodeShareSession(
 	session: ShareSession,
 ): Promise<string> {
-	const serialized = toTuple(session);
-	fromTuple(serialized);
+	const serialized = encodeCurrentVersion(session);
+	decodeVersionedTuple(serialized);
 	const json = JSON.stringify(serialized);
 	const bytes = new TextEncoder().encode(json);
 	const plain = `1j${toBase64Url(bytes)}`;
@@ -80,24 +89,28 @@ export async function decodeShareSession(
 	} catch {
 		throw new Error("Malformed share payload");
 	}
-	return fromTuple(value);
+	return decodeVersionedTuple(value);
 }
 
-function toTuple(session: ShareSession): JsonValue {
+function encodeCurrentVersion(session: ShareSession): JsonValue {
+	return encodeVersion2(session);
+}
+
+function encodeVersion2(session: ShareSession): JsonValue {
 	const state = session.state;
 	const workspace = (dimension: Dimension): JsonValue => {
 		const item = state.workspaces[dimension];
 		return [
 			item.matrices.map((matrix) => [
 				matrix.label,
-				matrix.draftValues,
-				matrix.values,
+				matrix.entries.map((entry) => entry.source),
+				getMatrixValues(matrix),
 				matrix.durationMs,
 			]),
 			item.vectors.map((vector) => [
 				vector.label,
-				vector.draftComponents,
-				vector.components,
+				vector.coordinates.map((coordinate) => coordinate.source),
+				getVectorValues(vector),
 				vector.color,
 			]),
 			item.appliedTransform,
@@ -108,7 +121,7 @@ function toTuple(session: ShareSession): JsonValue {
 		return [item.position, item.target, item.zoom];
 	};
 	return [
-		2,
+		CURRENT_SHARE_PAYLOAD_VERSION,
 		state.activeDimension,
 		state.showBasis ? 1 : 0,
 		state.showGrid ? 1 : 0,
@@ -122,22 +135,85 @@ function toTuple(session: ShareSession): JsonValue {
 	];
 }
 
-function fromTuple(value: unknown): ShareSession {
+function decodeVersionedTuple(value: unknown): ShareSession {
 	if (!Array.isArray(value)) throw new Error("Invalid share payload shape");
 	const version: unknown = value[0];
-	if (version !== 1 && version !== 2)
-		throw new Error("Unsupported share payload");
-	const root = tuple(value, version === 1 ? 10 : 11);
-	const offset = version === 1 ? 0 : 1;
+	switch (version) {
+		case 1:
+			return decodeVersion1(value);
+		case 2:
+			return decodeVersion2(value);
+		default:
+			throw new Error("Unsupported share payload");
+	}
+}
+
+function decodeVersion1(value: unknown): ShareSession {
+	const root = tuple(value, 10);
 	const activeDimension = dimension(root[1]);
 	const showBasis = flag(root[2]);
-	const showGrid = version === 1 ? true : flag(root[3]);
-	const mode: AnimationMode = flag(root[3 + offset]) ? "composed" : "steps";
-	const paused = flag(root[4 + offset]);
-	const elapsedMs = finiteNumber(root[5 + offset], 0, 384_000);
-	const workspace2 = parseWorkspace(root[6 + offset], 2);
-	const workspace3 = parseWorkspace(root[7 + offset], 3);
+	const mode: AnimationMode = flag(root[3]) ? "composed" : "steps";
+	const paused = flag(root[4]);
 
+	return createDecodedSession({
+		activeDimension,
+		showBasis,
+		showGrid: true,
+		mode,
+		paused,
+		elapsedMs: finiteNumber(root[5], 0, 384_000),
+		workspace2: parseWorkspace(root[6], 2),
+		workspace3: parseWorkspace(root[7], 3),
+		camera2: parseCamera(root[8]),
+		camera3: parseCamera(root[9]),
+	});
+}
+
+function decodeVersion2(value: unknown): ShareSession {
+	const root = tuple(value, 11);
+	const activeDimension = dimension(root[1]);
+	const showBasis = flag(root[2]);
+	const showGrid = flag(root[3]);
+	const mode: AnimationMode = flag(root[4]) ? "composed" : "steps";
+	const paused = flag(root[5]);
+
+	return createDecodedSession({
+		activeDimension,
+		showBasis,
+		showGrid,
+		mode,
+		paused,
+		elapsedMs: finiteNumber(root[6], 0, 384_000),
+		workspace2: parseWorkspace(root[7], 2),
+		workspace3: parseWorkspace(root[8], 3),
+		camera2: parseCamera(root[9]),
+		camera3: parseCamera(root[10]),
+	});
+}
+
+function createDecodedSession({
+	activeDimension,
+	showBasis,
+	showGrid,
+	mode,
+	paused,
+	elapsedMs,
+	workspace2,
+	workspace3,
+	camera2,
+	camera3,
+}: {
+	activeDimension: Dimension;
+	showBasis: boolean;
+	showGrid: boolean;
+	mode: AnimationMode;
+	paused: boolean;
+	elapsedMs: number;
+	workspace2: Workspace;
+	workspace3: Workspace;
+	camera2: CameraSnapshot;
+	camera3: CameraSnapshot;
+}): ShareSession {
 	return {
 		state: {
 			activeDimension,
@@ -153,8 +229,8 @@ function fromTuple(value: unknown): ShareSession {
 		},
 		elapsedMs,
 		cameras: {
-			2: parseCamera(root[8 + offset]),
-			3: parseCamera(root[9 + offset]),
+			2: camera2,
+			3: camera3,
 		},
 	};
 }
@@ -174,8 +250,7 @@ function parseWorkspace(value: unknown, dimensionValue: Dimension) {
 		return {
 			id: crypto.randomUUID(),
 			label,
-			draftValues,
-			values,
+			entries: createNumericCells(values, draftValues),
 			durationMs,
 		};
 	});
@@ -192,16 +267,24 @@ function parseWorkspace(value: unknown, dimensionValue: Dimension) {
 		return {
 			id: crypto.randomUUID(),
 			label,
-			draftComponents,
-			components,
+			coordinates: createNumericCells(components, draftComponents),
 			color,
 		};
 	});
-	const appliedTransform = finiteNumbers(
+	const appliedTransform = numbers(
 		item[2],
 		dimensionValue ** 2,
+		MAX_RENDER_TRANSFORM_VALUE,
 	) as MatrixValues;
-	return { dimension: dimensionValue, matrices, vectors, appliedTransform };
+	const workspace: Workspace = {
+		dimension: dimensionValue,
+		matrices,
+		vectors,
+		appliedTransform,
+	};
+	if (!hasSafeComposedTransform(workspace))
+		throw new Error("Invalid numeric value");
+	return workspace;
 }
 
 function parseCamera(value: unknown): CameraSnapshot {
@@ -247,14 +330,6 @@ function numbers(
 	return tuple(value, length).map((entry) =>
 		finiteNumber(entry, -absoluteLimit, absoluteLimit),
 	);
-}
-
-function finiteNumbers(value: unknown, length: number): number[] {
-	return tuple(value, length).map((entry) => {
-		if (typeof entry !== "number" || !Number.isFinite(entry))
-			throw new Error("Invalid numeric value");
-		return entry;
-	});
 }
 
 function finiteNumber(
@@ -356,9 +431,10 @@ async function decompressBounded(bytes: Uint8Array): Promise<Uint8Array> {
 			writing,
 		]);
 		return result;
-	} catch {
+	} catch (error) {
 		await Promise.allSettled([writing]);
-		throw new Error("Malformed share payload");
+		if (isPayloadTooLargeError(error)) throw error;
+		throw malformedPayloadError(error);
 	}
 }
 
@@ -380,8 +456,9 @@ async function readBounded(
 			}
 			chunks.push(value);
 		}
-	} catch {
-		throw new Error("Malformed share payload");
+	} catch (error) {
+		if (isPayloadTooLargeError(error)) throw error;
+		throw malformedPayloadError(error);
 	}
 	const output = new Uint8Array(size);
 	let offset = 0;
@@ -390,4 +467,16 @@ async function readBounded(
 		offset += chunk.byteLength;
 	}
 	return output;
+}
+
+function isPayloadTooLargeError(error: unknown): error is Error {
+	return (
+		error instanceof Error && error.message === "Share payload is too large"
+	);
+}
+
+function malformedPayloadError(cause: unknown): Error {
+	const error = new Error("Malformed share payload");
+	(error as Error & { cause: unknown }).cause = cause;
+	return error;
 }

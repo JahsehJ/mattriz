@@ -8,24 +8,34 @@ import {
 	lerpMatrix,
 	multiplyMatrix,
 } from "./math";
+import { evaluateBoundedExpression } from "./expression";
 
 export type AnimationMode = "steps" | "composed";
 export type PlaybackStatus = "idle" | "playing" | "paused";
 export const MAX_WORKSPACE_NODES = 64;
+// Keep a wide margin below Float32's maximum because these values are uploaded
+// to WebGL and used in subsequent vector calculations.
+export const MAX_RENDER_TRANSFORM_VALUE = 1e30;
+export const MAX_ABSOLUTE_INPUT_VALUE = 100;
+
+export type NumericCellError = "invalid-expression" | "transform-overflow";
+
+export interface NumericCell {
+	source: string;
+	value: number;
+}
 
 export interface MatrixNode {
 	id: string;
 	label: string;
-	values: MatrixValues;
-	draftValues: string[];
+	entries: NumericCell[];
 	durationMs: number;
 }
 
 export interface VectorNode {
 	id: string;
 	label: string;
-	components: VectorValues;
-	draftComponents: string[];
+	coordinates: NumericCell[];
 	color: string;
 }
 
@@ -100,8 +110,10 @@ export function createMatrixNode(
 	return {
 		id: crypto.randomUUID(),
 		label,
-		values: nextValues,
-		draftValues: draftValues ?? Array.from(nextValues, String),
+		entries: createNumericCells(
+			nextValues,
+			draftValues ?? Array.from(nextValues, String),
+		),
 		durationMs: 900,
 	};
 }
@@ -118,8 +130,10 @@ export function createVectorNode(
 	return {
 		id: crypto.randomUUID(),
 		label,
-		components: nextComponents,
-		draftComponents: draftComponents ?? Array.from(nextComponents, String),
+		coordinates: createNumericCells(
+			nextComponents,
+			draftComponents ?? Array.from(nextComponents, String),
+		),
 		color,
 	};
 }
@@ -143,8 +157,31 @@ export function canAddWorkspaceNodes(
 export function getTotalTransform(workspace: Workspace): MatrixValues {
 	return composeMathNotation(
 		workspace.dimension,
-		workspace.matrices.map((matrix) => matrix.values),
+		workspace.matrices.map(getMatrixValues),
 	);
+}
+
+export function hasSafeComposedTransform(workspace: Workspace): boolean {
+	let accumulated = identityMatrix(workspace.dimension);
+
+	for (const matrix of [...workspace.matrices].reverse()) {
+		accumulated = multiplyMatrix(
+			workspace.dimension,
+			getMatrixValues(matrix),
+			accumulated,
+		);
+		if (
+			!accumulated.every(
+				(value) =>
+					Number.isFinite(value) &&
+					Math.abs(value) <= MAX_RENDER_TRANSFORM_VALUE,
+			)
+		) {
+			return false;
+		}
+	}
+
+	return true;
 }
 
 export function getTransformedVectors(workspace: Workspace): VectorValues[] {
@@ -154,7 +191,7 @@ export function getTransformedVectors(workspace: Workspace): VectorValues[] {
 			applyMatrixToVector(
 				workspace.dimension,
 				transform,
-				vector.components,
+				getVectorValues(vector),
 			).slice(0, workspace.dimension) as VectorValues,
 	);
 }
@@ -220,7 +257,7 @@ export function getStepTransform(
 			const partial = lerpMatrix(
 				workspace.dimension,
 				identityMatrix(workspace.dimension),
-				matrix.values,
+				getMatrixValues(matrix),
 				remaining / duration,
 			);
 			return multiplyMatrix(workspace.dimension, partial, accumulated);
@@ -228,13 +265,47 @@ export function getStepTransform(
 
 		accumulated = multiplyMatrix(
 			workspace.dimension,
-			matrix.values,
+			getMatrixValues(matrix),
 			accumulated,
 		);
 		remaining -= duration;
 	}
 
 	return accumulated;
+}
+
+export function getMatrixValues(matrix: MatrixNode): MatrixValues {
+	return matrix.entries.map((entry) => entry.value) as MatrixValues;
+}
+
+export function getVectorValues(vector: VectorNode): VectorValues {
+	return vector.coordinates.map(
+		(coordinate) => coordinate.value,
+	) as VectorValues;
+}
+
+export function createNumericCells(
+	values: readonly number[],
+	sources: readonly string[],
+): NumericCell[] {
+	return values.map((value, index) => {
+		const source = sources[index] ?? String(value);
+		return {
+			source,
+			value,
+		};
+	});
+}
+
+export function getNumericCellError(
+	cell: NumericCell,
+): NumericCellError | null {
+	const evaluated = evaluateBoundedExpression(
+		cell.source,
+		MAX_ABSOLUTE_INPUT_VALUE,
+	);
+	if (evaluated === null) return "invalid-expression";
+	return evaluated === cell.value ? null : "transform-overflow";
 }
 
 export function getAnimationProgress(

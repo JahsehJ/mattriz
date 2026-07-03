@@ -1,18 +1,20 @@
 import { evaluateBoundedExpression } from "../domain/expression";
 import {
-	type VectorValues,
 	getRealEigenbasis,
 	getRepresentativeRealEigenvector,
 } from "../domain/math";
 import { getMatrixPresets } from "../domain/presets";
 import {
+	MAX_ABSOLUTE_INPUT_VALUE,
 	type AppState,
-	type MatrixNode,
+	type NumericCell,
 	canAddWorkspaceNodes,
 	createMatrixNode,
 	createVectorNode,
+	getNumericCellError,
 	getTotalTransform,
 	getWorkspace,
+	hasSafeComposedTransform,
 } from "../domain/state";
 import type { Translate } from "../i18n";
 import {
@@ -23,7 +25,6 @@ import {
 	nextVectorLabel,
 } from "./workspace-actions";
 
-const MAX_ABSOLUTE_INPUT_VALUE = 100;
 const VECTOR_COLORS = [
 	"#f4b740",
 	"#5bd8a6",
@@ -94,6 +95,10 @@ export class WorkspaceController {
 				preset.draftValues,
 			),
 		);
+		if (!hasSafeComposedTransform(workspace)) {
+			workspace.matrices.shift();
+			return;
+		}
 		this.options.resetAnimation();
 	}
 
@@ -142,9 +147,15 @@ export class WorkspaceController {
 	}
 
 	deleteMatrix(id: string): void {
-		this.workspace.matrices = this.workspace.matrices.filter(
+		const workspace = this.workspace;
+		const previous = workspace.matrices;
+		workspace.matrices = workspace.matrices.filter(
 			(matrix) => matrix.id !== id,
 		);
+		if (!hasSafeComposedTransform(workspace)) {
+			workspace.matrices = previous;
+			return;
+		}
 		this.options.resetAnimation();
 	}
 
@@ -156,8 +167,13 @@ export class WorkspaceController {
 	}
 
 	moveMatrix(id: string, targetId: string, side: "before" | "after"): void {
-		if (!moveItemTo(this.workspace.matrices, id, targetId, side).changed)
+		const workspace = this.workspace;
+		const previous = [...workspace.matrices];
+		if (!moveItemTo(workspace.matrices, id, targetId, side).changed) return;
+		if (!hasSafeComposedTransform(workspace)) {
+			workspace.matrices = previous;
 			return;
+		}
 		this.options.resetAnimation();
 	}
 
@@ -176,6 +192,14 @@ export class WorkspaceController {
 			? moveItemBy(this.workspace.matrices, matrixId, direction)
 			: moveItemBy(this.workspace.vectors, id, direction);
 		if (!result.changed) return;
+		if (matrixId && !hasSafeComposedTransform(this.workspace)) {
+			moveItemBy(
+				this.workspace.matrices,
+				matrixId,
+				-direction as MoveDirection,
+			);
+			return;
+		}
 		const items = matrixId
 			? this.workspace.matrices
 			: this.workspace.vectors;
@@ -229,13 +253,19 @@ export class WorkspaceController {
 		const matrix = this.workspace.matrices.find((item) => item.id === id);
 		if (!matrix) return;
 		this.updateNumericDraft(
-			matrix.draftValues,
+			matrix.entries,
 			index,
 			value,
-			this.workspace.dimension ** 2,
 			`input[data-matrix-id="${CSS.escape(id)}"]`,
 			(values) => {
-				matrix.values = values as MatrixNode["values"];
+				const previous = matrix.entries;
+				matrix.entries = previous.map((entry, entryIndex) => ({
+					...entry,
+					value: values[entryIndex],
+				}));
+				const renderable = hasSafeComposedTransform(this.workspace);
+				matrix.entries = previous;
+				return renderable;
 			},
 		);
 	}
@@ -248,14 +278,11 @@ export class WorkspaceController {
 		const vector = this.workspace.vectors.find((item) => item.id === id);
 		if (!vector) return;
 		this.updateNumericDraft(
-			vector.draftComponents,
+			vector.coordinates,
 			index,
 			value,
-			this.workspace.dimension,
 			`input[data-vector-id="${CSS.escape(id)}"]`,
-			(values) => {
-				vector.components = values as VectorValues;
-			},
+			() => true,
 		);
 	}
 
@@ -271,29 +298,36 @@ export class WorkspaceController {
 	}
 
 	private updateNumericDraft(
-		draft: string[],
+		cells: NumericCell[],
 		index: number,
 		value: string,
-		count: number,
 		inputSelector: string,
-		commit: (values: number[]) => void,
+		commit: (values: number[]) => boolean,
 	): void {
-		draft[index] = value;
-		const parsed = draft
-			.slice(0, count)
-			.map((entry) =>
-				evaluateBoundedExpression(entry, MAX_ABSOLUTE_INPUT_VALUE),
-			);
+		const cell = cells[index];
+		if (!cell) return;
+		cell.source = value;
+		const parsed = cells.map((entry) =>
+			evaluateBoundedExpression(entry.source, MAX_ABSOLUTE_INPUT_VALUE),
+		);
+		if (
+			parsed.every((entry): entry is number => entry !== null) &&
+			commit(parsed)
+		) {
+			cells.forEach((entry, entryIndex) => {
+				entry.value = parsed[entryIndex];
+			});
+		}
 		this.stack
 			.querySelectorAll<HTMLInputElement>(inputSelector)
 			.forEach((input, inputIndex) => {
 				input.toggleAttribute(
 					"aria-invalid",
-					parsed[inputIndex] === null,
+					cells[inputIndex] !== undefined &&
+						getNumericCellError(cells[inputIndex]) !== null,
 				);
 			});
-		if (!parsed.every((entry): entry is number => entry !== null)) return;
-		commit(parsed);
+		if (cells.some((entry) => getNumericCellError(entry) !== null)) return;
 		this.options.resetAnimation(false);
 		this.options.updateResults();
 	}

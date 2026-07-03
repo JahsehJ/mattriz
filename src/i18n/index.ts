@@ -1,13 +1,15 @@
-export const localeMetadata = [
-	{ code: "en", label: "English", path: "./", languageTags: ["en"] },
-	{
-		code: "zh-Hant",
-		label: "繁體中文",
-		path: "zh-hant/",
-		languageTags: ["zh-Hant", "zh-TW", "zh-HK"],
-	},
-] as const;
-export type Locale = (typeof localeMetadata)[number]["code"];
+import localeMetadataSource from "./locale-metadata.json";
+
+export type Locale = "en" | "zh-Hant";
+interface LocaleMetadata {
+	code: Locale;
+	label: string;
+	path: string;
+	languageTags: string[];
+}
+export const localeMetadata: LocaleMetadata[] = localeMetadataSource.map(
+	(metadata) => ({ ...metadata, code: metadata.code as Locale }),
+);
 
 const en = {
 	language: "Language",
@@ -96,7 +98,6 @@ const en = {
 	addVector: "Add vector",
 	matrixPresets: "Matrix presets",
 	vectorPresets: "Vector presets",
-	identityPreset: "Identity",
 	reflectionAxisPreset: "Reflect across {axis}-axis",
 	reflectionPlanePreset: "Reflect across {axis}-plane",
 	rotationPreset: "Rotate {angle}°{axis}",
@@ -213,7 +214,6 @@ const zhHant: Messages = {
 	addVector: "新增向量",
 	matrixPresets: "矩陣預設",
 	vectorPresets: "向量預設",
-	identityPreset: "單位矩陣",
 	reflectionAxisPreset: "沿 {axis} 軸鏡射",
 	reflectionPlanePreset: "沿 {axis} 平面鏡射",
 	rotationPreset: "旋轉 {angle}°{axis}",
@@ -237,7 +237,7 @@ const zhHant: Messages = {
 	transformedVectorColumns: "變換後的向量欄",
 };
 
-const messages: Record<Locale, Messages> = {
+export const messages: Record<Locale, Messages> = {
 	en,
 	"zh-Hant": zhHant,
 };

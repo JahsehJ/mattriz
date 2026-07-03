@@ -34,6 +34,14 @@ Run the linter, formatting check, test suite, and production build:
 npm run check
 ```
 
+Install Playwright's headless-only Chromium shell once, then run the browser
+tests against a production build:
+
+```sh
+npx playwright install chromium --only-shell
+npm run test:e2e
+```
+
 Set `VITE_SITE_URL` to the absolute public application URL when building for
 deployment. Include any deployment subpath and a trailing slash.
 
