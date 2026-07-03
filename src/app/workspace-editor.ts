@@ -11,7 +11,6 @@ import {
 	canAddWorkspaceNodes,
 	createMatrixNode,
 	createVectorNode,
-	recomputeWorkspace,
 } from "../domain/workspace";
 import {
 	type MoveDirection,
@@ -45,14 +44,14 @@ export class WorkspaceEditor {
 		const workspace = this.workspace;
 		if (!canAddWorkspaceNodes(workspace, "matrices")) return;
 		workspace.matrices.unshift(this.createMatrix());
-		this.commit();
+		this.options.commit();
 	}
 
 	addVector(): void {
 		const workspace = this.workspace;
 		if (!canAddWorkspaceNodes(workspace, "vectors")) return;
 		workspace.vectors.push(this.createVector());
-		this.commit();
+		this.options.commit();
 	}
 
 	addMatrixPreset(presetId: string): void {
@@ -65,7 +64,7 @@ export class WorkspaceEditor {
 		workspace.matrices.unshift(
 			this.createMatrix(preset.values, preset.draftValues),
 		);
-		this.commit();
+		this.options.commit();
 	}
 
 	addEigenbasis(): void {
@@ -91,7 +90,7 @@ export class WorkspaceEditor {
 			);
 		}
 		workspace.vectors = vectors;
-		this.commit();
+		this.options.commit();
 	}
 
 	addRepresentativeEigenvector(): void {
@@ -112,31 +111,28 @@ export class WorkspaceEditor {
 				result.vector.map(formatInputNumber),
 			),
 		);
-		this.commit();
+		this.options.commit();
 	}
 
-	deleteMatrix(id: string): void {
-		this.mutateCollection(this.workspace.matrices, (matrices) =>
-			removeItem(matrices, id),
-		);
+	deleteItem(kind: "matrix" | "vector", id: string): void {
+		const remove = <T extends { id: string }>(items: T[]) =>
+			this.mutateCollection(items, (draft) => removeItem(draft, id));
+		if (kind === "matrix") remove(this.workspace.matrices);
+		else remove(this.workspace.vectors);
 	}
 
-	deleteVector(id: string): void {
-		this.mutateCollection(this.workspace.vectors, (vectors) =>
-			removeItem(vectors, id),
-		);
-	}
-
-	moveMatrix(id: string, targetId: string, side: "before" | "after"): void {
-		this.mutateCollection(this.workspace.matrices, (matrices) =>
-			moveItemTo(matrices, id, targetId, side),
-		);
-	}
-
-	moveVector(id: string, targetId: string, side: "before" | "after"): void {
-		this.mutateCollection(this.workspace.vectors, (vectors) =>
-			moveItemTo(vectors, id, targetId, side),
-		);
+	moveItemTo(
+		kind: "matrix" | "vector",
+		id: string,
+		targetId: string,
+		side: "before" | "after",
+	): void {
+		const move = <T extends { id: string }>(items: T[]) =>
+			this.mutateCollection(items, (draft) =>
+				moveItemTo(draft, id, targetId, side),
+			);
+		if (kind === "matrix") move(this.workspace.matrices);
+		else move(this.workspace.vectors);
 	}
 
 	moveItem(
@@ -184,11 +180,6 @@ export class WorkspaceEditor {
 		);
 	}
 
-	private commit(): void {
-		recomputeWorkspace(this.workspace);
-		this.options.commit();
-	}
-
 	private mutateCollection<T extends { id: string }>(
 		items: T[],
 		mutate: (draft: T[]) => MoveResult,
@@ -197,7 +188,7 @@ export class WorkspaceEditor {
 		const result = mutate(draft);
 		if (!result.changed) return result;
 		items.splice(0, items.length, ...draft);
-		this.commit();
+		this.options.commit();
 		return result;
 	}
 

@@ -80,10 +80,8 @@ const shareController = new ShareController({
 	getCameras: () => scene.getCameraSnapshots(),
 });
 const dragController = new DragController(matrixStack, {
-	moveMatrix: (id, targetId, side) =>
-		appController.editor.moveMatrix(id, targetId, side),
-	moveVector: (id, targetId, side) =>
-		appController.editor.moveVector(id, targetId, side),
+	moveItem: (kind, id, targetId, side) =>
+		appController.editor.moveItemTo(kind, id, targetId, side),
 	createVectorPreview: (id) =>
 		appController.equations.createVectorDragPreview(id),
 });
@@ -103,8 +101,9 @@ root.addEventListener("click", (event) => {
 		resetWorkspaceDialog.close();
 		return;
 	}
-	const dimensionButton =
-		target.closest<HTMLButtonElement>("[data-dimension]");
+	const dimensionButton = target.closest<HTMLButtonElement>(
+		".mode-switch button",
+	);
 	const actionButton = target.closest<HTMLButtonElement>("[data-action]");
 
 	if (dimensionButton) {
@@ -135,9 +134,9 @@ root.addEventListener("click", (event) => {
 	if (action === "close-about") aboutDialog.close();
 	if (action === "close-share-error") shareErrorDialog.close();
 	if (action === "delete-matrix" && actionButton.dataset.id)
-		appController.editor.deleteMatrix(actionButton.dataset.id);
+		appController.editor.deleteItem("matrix", actionButton.dataset.id);
 	if (action === "delete-vector" && actionButton.dataset.id)
-		appController.editor.deleteVector(actionButton.dataset.id);
+		appController.editor.deleteItem("vector", actionButton.dataset.id);
 });
 
 document.addEventListener("click", (event) => {

@@ -62,10 +62,9 @@ describe("drag interaction lifecycle", () => {
 			querySelector: vi.fn(() => null),
 			querySelectorAll: vi.fn(() => [first, second]),
 		} as unknown as HTMLElement;
-		const moveMatrix = vi.fn();
+		const moveItem = vi.fn();
 		const controller = new DragController(stack, {
-			moveMatrix,
-			moveVector: vi.fn(),
+			moveItem,
 			createVectorPreview: vi.fn(),
 		});
 		const source = {
@@ -86,7 +85,7 @@ describe("drag interaction lifecycle", () => {
 		listeners.get("dragstart")!(start);
 		listeners.get("drop")!(drop);
 
-		expect(moveMatrix).toHaveBeenCalledWith("a", "b", "after");
+		expect(moveItem).toHaveBeenCalledWith("matrix", "a", "b", "after");
 		expect(preventDrop).toHaveBeenCalledOnce();
 		controller.dispose();
 	});
@@ -100,8 +99,7 @@ describe("drag interaction lifecycle", () => {
 			removeEventListener: vi.fn(),
 		} as unknown as HTMLElement;
 		new DragController(stack, {
-			moveMatrix: vi.fn(),
-			moveVector: vi.fn(),
+			moveItem: vi.fn(),
 			createVectorPreview: vi.fn(),
 		});
 		const preventDefault = vi.fn();

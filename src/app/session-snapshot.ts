@@ -3,6 +3,7 @@ import {
 	type MatrixFor,
 	type VectorFor,
 	cloneMatrix,
+	composeMathNotation,
 } from "../domain/math";
 import {
 	type MatrixNode,
@@ -13,6 +14,7 @@ import {
 import type {
 	EvaluatedMatrix,
 	EvaluatedVector,
+	WorkspaceEvaluation,
 } from "../domain/workspace-evaluation";
 import type { WorkspaceDocument } from "../domain/workspace-types";
 import { type AppState, createInitialState } from "./state";
@@ -164,7 +166,7 @@ function restoreWorkspace<D extends Dimension>(
 		!restoreWorkspaceState(
 			workspace,
 			document,
-			evaluationToDocument(
+			restoreEvaluation(
 				dimension,
 				snapshot.lastValidEvaluation,
 				document,
@@ -190,11 +192,11 @@ function snapshotToDocument<D extends Dimension>(
 	};
 }
 
-function evaluationToDocument<D extends Dimension>(
+function restoreEvaluation<D extends Dimension>(
 	dimension: D,
 	evaluation: WorkspaceEvaluationSnapshot<D>,
 	document: WorkspaceDocument<D>,
-): WorkspaceDocument<D> {
+): WorkspaceEvaluation<D> {
 	const matchingId = (
 		kind: "matrix" | "vector",
 		index: number,
@@ -209,18 +211,20 @@ function evaluationToDocument<D extends Dimension>(
 		dimension,
 		matrices: evaluation.matrices.map((matrix, index) => ({
 			id: matchingId("matrix", index, matrix.label),
-			dimension,
 			label: matrix.label,
-			entries: matrix.values.map(String),
+			values: cloneMatrix(matrix.values),
 			durationMs: matrix.durationMs,
 		})),
 		vectors: evaluation.vectors.map((vector, index) => ({
 			id: matchingId("vector", index, vector.label),
-			dimension,
 			label: vector.label,
-			coordinates: vector.values.map(String),
+			coordinates: [...vector.values] as VectorFor<D>,
 			color: vector.color,
 		})),
+		totalTransform: composeMathNotation(
+			dimension,
+			evaluation.matrices.map((matrix) => matrix.values),
+		),
 	};
 }
 

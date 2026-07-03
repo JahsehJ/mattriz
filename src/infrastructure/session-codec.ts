@@ -44,17 +44,13 @@ const CURRENT_SHARE_PAYLOAD_VERSION: SharePayloadVersion = 3;
 export async function encodeShareSession(
 	session: SessionSnapshot,
 ): Promise<string> {
-	return encodeSharePayload(encodeCurrentVersion(session));
+	return encodeSharePayload(encodeVersion3(session));
 }
 
 export async function decodeShareSession(
 	fragment: string,
 ): Promise<SessionSnapshot> {
 	return decodeVersionedTuple(await decodeSharePayload(fragment));
-}
-
-function encodeCurrentVersion(session: SessionSnapshot): JsonValue {
-	return encodeVersion3(session);
 }
 
 function encodeVersion3(session: SessionSnapshot): JsonValue {
@@ -129,49 +125,89 @@ function decodeVersionedTuple(value: unknown): SessionSnapshot {
 }
 
 function upgradeVersion1(value: unknown): unknown[] {
-	const root = tuple(value, 10);
+	const [
+		,
+		activeDimension,
+		showBasis,
+		animationMode,
+		animationActive,
+		elapsedMs,
+		workspace2,
+		workspace3,
+		camera2,
+		camera3,
+	] = tuple(value, 10);
 	return [
 		CURRENT_SHARE_PAYLOAD_VERSION,
-		root[1],
-		root[2],
+		activeDimension,
+		showBasis,
 		1,
-		root[3],
-		root[4],
-		root[5],
-		upgradeLegacyWorkspace(root[6]),
-		upgradeLegacyWorkspace(root[7]),
-		root[8],
-		root[9],
+		animationMode,
+		animationActive,
+		elapsedMs,
+		upgradeLegacyWorkspace(workspace2),
+		upgradeLegacyWorkspace(workspace3),
+		camera2,
+		camera3,
 	];
 }
 
 function upgradeVersion2(value: unknown): unknown[] {
-	const root = tuple(value, 11);
+	const [
+		,
+		activeDimension,
+		showBasis,
+		showGrid,
+		animationMode,
+		animationActive,
+		elapsedMs,
+		workspace2,
+		workspace3,
+		camera2,
+		camera3,
+	] = tuple(value, 11);
 	return [
 		CURRENT_SHARE_PAYLOAD_VERSION,
-		...root.slice(1, 7),
-		upgradeLegacyWorkspace(root[7]),
-		upgradeLegacyWorkspace(root[8]),
-		root[9],
-		root[10],
+		activeDimension,
+		showBasis,
+		showGrid,
+		animationMode,
+		animationActive,
+		elapsedMs,
+		upgradeLegacyWorkspace(workspace2),
+		upgradeLegacyWorkspace(workspace3),
+		camera2,
+		camera3,
 	];
 }
 
 function decodeCurrentTuple(value: unknown): SessionSnapshot {
-	const root = tuple(value, 11);
-	if (root[0] !== CURRENT_SHARE_PAYLOAD_VERSION)
+	const [
+		version,
+		activeDimension,
+		showBasis,
+		showGrid,
+		animationMode,
+		animationActive,
+		elapsedMs,
+		workspace2,
+		workspace3,
+		camera2,
+		camera3,
+	] = tuple(value, 11);
+	if (version !== CURRENT_SHARE_PAYLOAD_VERSION)
 		throw new Error("Unsupported share payload");
 	return createDecodedSession({
-		activeDimension: dimension(root[1]),
-		showBasis: flag(root[2]),
-		showGrid: flag(root[3]),
-		mode: flag(root[4]) ? "composed" : "steps",
-		paused: flag(root[5]),
-		elapsedMs: finiteNumber(root[6], 0, MAX_SESSION_ELAPSED_MS),
-		workspace2: parseWorkspace(root[7], 2),
-		workspace3: parseWorkspace(root[8], 3),
-		camera2: parseCamera(root[9]),
-		camera3: parseCamera(root[10]),
+		activeDimension: dimension(activeDimension),
+		showBasis: flag(showBasis),
+		showGrid: flag(showGrid),
+		mode: flag(animationMode) ? "composed" : "steps",
+		paused: flag(animationActive),
+		elapsedMs: finiteNumber(elapsedMs, 0, MAX_SESSION_ELAPSED_MS),
+		workspace2: parseWorkspace(workspace2, 2),
+		workspace3: parseWorkspace(workspace3, 3),
+		camera2: parseCamera(camera2),
+		camera3: parseCamera(camera3),
 	});
 }
 

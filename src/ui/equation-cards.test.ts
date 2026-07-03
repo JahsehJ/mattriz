@@ -48,7 +48,7 @@ describe("equation card sizing", () => {
 	it("updates matrix and vector column templates from current values", () => {
 		const matrixStyle = { gridTemplateColumns: "" };
 		const matrixGrid = {
-			classList: { contains: () => false },
+			dataset: { dimension: "2" },
 			querySelectorAll: () => [{ value: "1" }, { value: "12345" }],
 			style: matrixStyle,
 		};

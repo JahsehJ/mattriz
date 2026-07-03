@@ -106,7 +106,13 @@ describe("workspace lifecycle", () => {
 			vectors: workspace.vectors,
 		};
 
-		expect(restoreWorkspaceState(workspace, invalid, invalid)).toBe(false);
+		expect(
+			restoreWorkspaceState(
+				workspace,
+				invalid,
+				workspace.lastValidEvaluation,
+			),
+		).toBe(false);
 		expect(workspace.matrices).toEqual(originalMatrices);
 	});
 
@@ -119,13 +125,17 @@ describe("workspace lifecycle", () => {
 				matrices: [{ ...workspace.matrices[0], id }],
 			} as unknown as Workspace<2>;
 
-			expect(restoreWorkspaceState(workspace, invalid, workspace)).toBe(
-				false,
-			);
+			expect(
+				restoreWorkspaceState(
+					workspace,
+					invalid,
+					workspace.lastValidEvaluation,
+				),
+			).toBe(false);
 		},
 	);
 
-	it("rejects restored workspaces with mismatched dimensions or no valid fallback", () => {
+	it("rejects restored workspaces with mismatched dimensions", () => {
 		const workspace = createWorkspace(2);
 		const wrongDimension = createWorkspace(3);
 		const invalid = {
@@ -142,10 +152,16 @@ describe("workspace lifecycle", () => {
 			restoreWorkspaceState(
 				workspace,
 				wrongDimension as unknown as Workspace<2>,
-				workspace,
+				workspace.lastValidEvaluation,
 			),
 		).toBe(false);
-		expect(restoreWorkspaceState(workspace, invalid, invalid)).toBe(false);
+		expect(
+			restoreWorkspaceState(
+				workspace,
+				invalid,
+				wrongDimension.lastValidEvaluation as unknown as Workspace<2>["lastValidEvaluation"],
+			),
+		).toBe(false);
 	});
 
 	it("reports the structural node limit", () => {

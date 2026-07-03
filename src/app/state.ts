@@ -21,8 +21,8 @@ export function createInitialState(createId?: () => string): AppState {
 	return {
 		activeDimension: 3,
 		workspaces: {
-			2: createId ? createWorkspace(2, createId) : createWorkspace(2),
-			3: createId ? createWorkspace(3, createId) : createWorkspace(3),
+			2: createWorkspace(2, createId),
+			3: createWorkspace(3, createId),
 		},
 		appliedTransforms: {
 			2: identityMatrix(2),

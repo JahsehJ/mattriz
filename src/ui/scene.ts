@@ -333,10 +333,10 @@ export class MatrixScene {
 
 		this.renderer.setSize(width, height, false);
 
-		this.perspectiveCamera.aspect = width / Math.max(1, height);
+		this.perspectiveCamera.aspect = width / height;
 		this.perspectiveCamera.updateProjectionMatrix();
 
-		const aspect = width / Math.max(1, height);
+		const aspect = width / height;
 		const span = 7;
 		this.orthoCamera.left = -span * aspect;
 		this.orthoCamera.right = span * aspect;
@@ -438,8 +438,9 @@ export class MatrixScene {
 		matrix: MatrixFor<D>,
 		vectors: readonly RenderVector<D>[],
 	): void {
+		const activeIds = new Set(vectors.map((vector) => vector.id));
 		for (const [id, visual] of this.vectorVisuals) {
-			if (vectors.some((vector) => vector.id === id)) continue;
+			if (activeIds.has(id)) continue;
 			this.root.remove(visual.arrow.group, visual.label);
 			disposeArrowVisual(visual.arrow);
 			disposeLabel(visual.label);

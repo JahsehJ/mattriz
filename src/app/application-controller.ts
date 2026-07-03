@@ -1,6 +1,7 @@
 import { type Mat2, type Mat3, identityMatrix } from "../domain/math";
 import { MAX_EXPRESSION_LENGTH } from "../domain/policy";
 import { type AppState, getWorkspace } from "./state";
+import { recomputeWorkspace } from "../domain/workspace";
 import type { MessageKey, Translate } from "../i18n";
 import { type MoveDirection } from "./workspace-actions";
 import {
@@ -17,6 +18,7 @@ import {
 	pausePlayback,
 	resetPlayback as resetPlaybackState,
 	togglePlayback as togglePlaybackState,
+	type PlaybackStatus,
 } from "./playback-state";
 import { EquationRenderer } from "../ui/equation-renderer";
 import { EquationInputController } from "./equation-input-controller";
@@ -28,6 +30,15 @@ interface ApplicationControllerOptions {
 	now(): number;
 	createId(): string;
 }
+
+const PLAYBACK_LABELS: Record<
+	PlaybackStatus,
+	{ text: MessageKey; ariaLabel: MessageKey }
+> = {
+	idle: { text: "apply", ariaLabel: "applyTransform" },
+	playing: { text: "pause", ariaLabel: "pauseAnimation" },
+	paused: { text: "resume", ariaLabel: "resumeAnimation" },
+};
 
 export class ApplicationController {
 	readonly equations: EquationRenderer;
@@ -48,14 +59,17 @@ export class ApplicationController {
 			maxInputLength: MAX_EXPRESSION_LENGTH,
 		});
 		this.inputs = new EquationInputController(stack, t, {
-			getState: () => options.getState(),
 			getWorkspace: () => this.workspace,
+			commit: () => this.commitWorkspace(),
 			render: (renderStack) => this.render(renderStack),
 		});
 		this.editor = new WorkspaceEditor({
 			getWorkspace: () => this.workspace,
 			createId: () => options.createId(),
-			commit: () => this.resetPlayback(),
+			commit: () => {
+				this.commitWorkspace();
+				this.render();
+			},
 		});
 	}
 
@@ -99,20 +113,9 @@ export class ApplicationController {
 		);
 		if (!button) return;
 		const status = this.options.getState().animation.status;
-		const textKey: MessageKey =
-			status === "playing"
-				? "pause"
-				: status === "paused"
-					? "resume"
-					: "apply";
-		const labelKey: MessageKey =
-			status === "playing"
-				? "pauseAnimation"
-				: status === "paused"
-					? "resumeAnimation"
-					: "applyTransform";
-		button.textContent = this.t(textKey);
-		button.setAttribute("aria-label", this.t(labelKey));
+		const labels = PLAYBACK_LABELS[status];
+		button.textContent = this.t(labels.text);
+		button.setAttribute("aria-label", this.t(labels.ariaLabel));
 		button.dataset.playbackStatus = status;
 		button.disabled =
 			!this.workspace.validity.valid ||
@@ -231,6 +234,12 @@ export class ApplicationController {
 
 	private get workspace() {
 		return getWorkspace(this.options.getState());
+	}
+
+	private commitWorkspace(): void {
+		recomputeWorkspace(this.workspace);
+		const state = this.options.getState();
+		state.animation = resetPlaybackState(state.animation);
 	}
 }
 

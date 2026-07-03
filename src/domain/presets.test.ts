@@ -17,6 +17,20 @@ describe("matrix presets", () => {
 			"rotate-y-45",
 			"rotate-z-45",
 		]);
+		expect(getMatrixPresets(2).map(({ subject }) => subject)).toEqual([
+			{ kind: "axis", name: "X" },
+			{ kind: "axis", name: "Y" },
+			{ kind: "angle", degrees: 45 },
+		]);
+		expect(
+			getMatrixPresets(3)
+				.slice(0, 3)
+				.map(({ subject }) => subject),
+		).toEqual([
+			{ kind: "plane", name: "XY" },
+			{ kind: "plane", name: "XZ" },
+			{ kind: "plane", name: "YZ" },
+		]);
 	});
 
 	it("keeps evaluated values synchronized with editable drafts", () => {

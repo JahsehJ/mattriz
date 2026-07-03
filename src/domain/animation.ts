@@ -31,6 +31,11 @@ export type AnimationProgress =
 	| { mode: "steps"; matrixId: string; progress: number }
 	| { mode: "composed"; progress: number };
 
+interface ActiveStep {
+	readonly index: number;
+	readonly progress: number;
+}
+
 export function getAnimatedTransform<D extends Dimension>(
 	sequence: AnimationSequence<D>,
 	appliedTransform: Readonly<MatrixFor<D>>,
@@ -61,31 +66,31 @@ export function getStepTransform<D extends Dimension>(
 	sequence: AnimationSequence<D>,
 	elapsedMs: number,
 ): MatrixFor<D> {
-	let remaining = normalizeElapsedMs(elapsedMs);
+	const activeStep = findActiveStep(sequence, elapsedMs);
 	let accumulated = identityMatrix(sequence.dimension);
 
-	for (let index = sequence.matrices.length - 1; index >= 0; index -= 1) {
+	for (
+		let index = sequence.matrices.length - 1;
+		index > (activeStep?.index ?? -1);
+		index -= 1
+	) {
 		const matrix = sequence.matrices[index];
-		const duration = getMatrixDuration(matrix);
-		if (remaining <= duration) {
-			const partial = lerpMatrix(
-				sequence.dimension,
-				identityMatrix(sequence.dimension),
-				cloneMatrix(matrix.values),
-				remaining / duration,
-			);
-			return multiplyMatrix(sequence.dimension, partial, accumulated);
-		}
-
 		accumulated = multiplyMatrix(
 			sequence.dimension,
-			cloneMatrix(matrix.values),
+			matrix.values,
 			accumulated,
 		);
-		remaining -= duration;
 	}
 
-	return accumulated;
+	if (!activeStep) return accumulated;
+	const matrix = sequence.matrices[activeStep.index];
+	const partial = lerpMatrix(
+		sequence.dimension,
+		identityMatrix(sequence.dimension),
+		matrix.values,
+		activeStep.progress,
+	);
+	return multiplyMatrix(sequence.dimension, partial, accumulated);
 }
 
 export function getAnimationProgress<D extends Dimension>(
@@ -94,7 +99,7 @@ export function getAnimationProgress<D extends Dimension>(
 ): AnimationProgress | null {
 	if (!frame) return null;
 
-	let remaining = normalizeElapsedMs(frame.elapsedMs);
+	const remaining = normalizeElapsedMs(frame.elapsedMs);
 	if (frame.mode === "composed") {
 		return {
 			mode: "composed",
@@ -106,24 +111,32 @@ export function getAnimationProgress<D extends Dimension>(
 		};
 	}
 
-	for (let index = sequence.matrices.length - 1; index >= 0; index -= 1) {
-		const matrix = sequence.matrices[index];
-		const duration = getMatrixDuration(matrix);
-		if (remaining <= duration) {
-			return {
+	const activeStep = findActiveStep(sequence, remaining);
+	return activeStep
+		? {
 				mode: "steps",
-				matrixId: matrix.id,
-				progress: remaining / duration,
-			};
-		}
-		remaining -= duration;
-	}
-
-	return null;
+				matrixId: sequence.matrices[activeStep.index].id,
+				progress: activeStep.progress,
+			}
+		: null;
 }
 
 function normalizeElapsedMs(elapsedMs: number): number {
 	return Number.isFinite(elapsedMs) ? Math.max(0, elapsedMs) : 0;
+}
+
+function findActiveStep<D extends Dimension>(
+	sequence: AnimationSequence<D>,
+	elapsedMs: number,
+): ActiveStep | null {
+	let remaining = normalizeElapsedMs(elapsedMs);
+	for (let index = sequence.matrices.length - 1; index >= 0; index -= 1) {
+		const duration = getMatrixDuration(sequence.matrices[index]);
+		if (remaining <= duration)
+			return { index, progress: remaining / duration };
+		remaining -= duration;
+	}
+	return null;
 }
 
 export function getAnimationDuration<D extends Dimension>(

@@ -4,8 +4,12 @@ type DropSide = "before" | "after";
 type DropTarget = { element: HTMLElement; id: string; side: DropSide };
 
 interface DragControllerOptions {
-	moveMatrix(id: string, targetId: string, side: DropSide): void;
-	moveVector(id: string, targetId: string, side: DropSide): void;
+	moveItem(
+		kind: DragKind,
+		id: string,
+		targetId: string,
+		side: DropSide,
+	): void;
 	createVectorPreview(vectorId: string): HTMLElement;
 }
 
@@ -92,24 +96,15 @@ export class DragController {
 
 	private readonly handleDrop = (event: DragEvent): void => {
 		event.preventDefault();
-		if (this.dragState?.kind === "vector") {
-			const target = this.getVectorDropTarget(event);
-			if (target) {
-				this.options.moveVector(
+		if (this.dragState) {
+			const target = this.getDropTarget(event, this.dragState.kind);
+			if (target)
+				this.options.moveItem(
+					this.dragState.kind,
 					this.dragState.id,
 					target.id,
 					target.side,
 				);
-			}
-		} else if (this.dragState?.kind === "matrix") {
-			const target = this.getMatrixDropTarget(event);
-			if (target) {
-				this.options.moveMatrix(
-					this.dragState.id,
-					target.id,
-					target.side,
-				);
-			}
 		}
 		this.finishDragging();
 	};
@@ -123,13 +118,16 @@ export class DragController {
 	private updateDropIndicator(event: DragEvent): void {
 		this.clearDropIndicator();
 		if (!this.dragState) return;
-		const target =
-			this.dragState.kind === "matrix"
-				? this.getMatrixDropTarget(event)
-				: this.getVectorDropTarget(event);
+		const target = this.getDropTarget(event, this.dragState.kind);
 		if (!target || target.id === this.dragState.id) return;
 		target.element.dataset.dropPosition = target.side;
 		this.dropIndicatorElement = target.element;
+	}
+
+	private getDropTarget(event: DragEvent, kind: DragKind): DropTarget | null {
+		return kind === "matrix"
+			? this.getMatrixDropTarget(event)
+			: this.getVectorDropTarget(event);
 	}
 
 	private getMatrixDropTarget(event: DragEvent): DropTarget | null {

@@ -71,18 +71,20 @@ describe("application controller", () => {
 
 		controller.editor.addMatrix();
 		controller.editor.addVector();
-		controller.editor.moveMatrix(
+		controller.editor.moveItemTo(
+			"matrix",
 			originalMatrix.id,
 			workspace.matrices[0].id,
 			"before",
 		);
-		controller.editor.moveVector(
+		controller.editor.moveItemTo(
+			"vector",
 			workspace.vectors[1].id,
 			originalVector.id,
 			"before",
 		);
-		controller.editor.deleteMatrix(originalMatrix.id);
-		controller.editor.deleteVector(originalVector.id);
+		controller.editor.deleteItem("matrix", originalMatrix.id);
+		controller.editor.deleteItem("vector", originalVector.id);
 
 		expect(workspace.matrices.map(({ label }) => label)).toEqual(["B"]);
 		expect(workspace.vectors.map(({ label }) => label)).toEqual(["v2"]);
@@ -92,7 +94,7 @@ describe("application controller", () => {
 		const { controller, workspace } = setup();
 		controller.editor.addVector();
 		const [v1, v2] = workspace.vectors;
-		controller.editor.deleteVector(v1.id);
+		controller.editor.deleteItem("vector", v1.id);
 
 		controller.editor.addVector();
 
@@ -158,7 +160,8 @@ describe("application controller", () => {
 		} as unknown as HTMLInputElement;
 
 		controller.inputs.handleInput(matrixInput);
-		controller.editor.moveVector(
+		controller.editor.moveItemTo(
+			"vector",
 			originalOrder[1],
 			originalOrder[0],
 			"before",

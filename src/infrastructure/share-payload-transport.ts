@@ -9,6 +9,7 @@ export async function encodeSharePayload(value: unknown): Promise<string> {
 	const compressed = await transformBytes(
 		bytes,
 		new CompressionStream("gzip"),
+		MAX_DECODED_BYTES,
 	);
 	const gzip = `1g${toBase64Url(compressed)}`;
 	return assertFits(gzip.length < plain.length ? gzip : plain);
@@ -68,14 +69,15 @@ function fromBase64Url(value: string): Uint8Array {
 
 async function transformBytes(
 	bytes: Uint8Array,
-	transform: CompressionStream,
+	transform: CompressionStream | DecompressionStream,
+	limit: number,
 ): Promise<Uint8Array> {
 	const writer = transform.writable.getWriter();
 	const writing = writer
 		.write(new Uint8Array(bytes))
 		.then(() => writer.close());
 	const [result] = await Promise.all([
-		readBounded(transform.readable, MAX_DECODED_BYTES),
+		readBounded(transform.readable, limit),
 		writing,
 	]);
 	return result;
@@ -84,19 +86,13 @@ async function transformBytes(
 async function decompressBounded(bytes: Uint8Array): Promise<Uint8Array> {
 	if (typeof DecompressionStream === "undefined")
 		throw new Error("Compressed share payload is unsupported");
-	const transform = new DecompressionStream("gzip");
-	const writer = transform.writable.getWriter();
-	const writing = writer
-		.write(new Uint8Array(bytes))
-		.then(() => writer.close());
 	try {
-		const [result] = await Promise.all([
-			readBounded(transform.readable, MAX_DECODED_BYTES),
-			writing,
-		]);
-		return result;
+		return await transformBytes(
+			bytes,
+			new DecompressionStream("gzip"),
+			MAX_DECODED_BYTES,
+		);
 	} catch (error) {
-		await Promise.allSettled([writing]);
 		if (isPayloadTooLargeError(error)) throw error;
 		throw malformedPayloadError(error);
 	}

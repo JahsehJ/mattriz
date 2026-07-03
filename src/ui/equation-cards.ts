@@ -41,7 +41,7 @@ export function renderMatrixCard(
           <div class="matrix-actions"><button type="button" data-action="delete-matrix" data-id="${matrix.id}" aria-label="${t("deleteMatrix", { label: matrix.label })}" title="${t("deleteMatrix", { label: matrix.label })}">${renderCloseIcon()}</button></div>
         </header>
         <div class="matrix-expression" role="group" aria-label="${t("matrixValues", { label: matrix.label })}">
-          <div class="matrix-bracket"><div class="matrix-grid matrix-grid-${workspace.dimension}" style="grid-template-columns:${template}" role="group" aria-label="${t("matrixEntries", { label: matrix.label })}">${entries}</div></div>
+          <div class="matrix-bracket"><div class="matrix-grid matrix-grid-${workspace.dimension}" data-dimension="${workspace.dimension}" style="grid-template-columns:${template}" role="group" aria-label="${t("matrixEntries", { label: matrix.label })}">${entries}</div></div>
         </div>
         <label class="duration-row" for="${durationName}">
           <span data-duration-output="${matrix.id}">${matrix.durationMs}ms</span>
@@ -131,7 +131,8 @@ export function updateMatrixGridWidth(input: HTMLInputElement): void {
 	const values = [...grid.querySelectorAll<HTMLInputElement>("input")].map(
 		(entry) => entry.value,
 	);
-	const columns = grid.classList.contains("matrix-grid-3") ? 3 : 2;
+	const columns = Number(grid.dataset.dimension);
+	if (columns !== 2 && columns !== 3) return;
 	applyEntryColumnTemplate([grid], groupEntriesByColumn(values, columns));
 }
 

@@ -2,7 +2,7 @@ import {
 	MAX_MATRIX_DURATION_MS,
 	MIN_MATRIX_DURATION_MS,
 } from "../domain/policy";
-import { type AnyWorkspace, recomputeWorkspace } from "../domain/workspace";
+import { type AnyWorkspace } from "../domain/workspace";
 import { getTransformedVectors } from "../domain/workspace-evaluation";
 import type { Translate } from "../i18n";
 import { applyEntryColumnTemplate } from "../ui/equation-layout";
@@ -11,12 +11,10 @@ import {
 	updateVectorColumnWidths,
 } from "../ui/equation-cards";
 import { formatDisplayNumber } from "../ui/number-formatting";
-import type { AppState } from "./state";
-import { resetPlayback } from "./playback-state";
 
 interface EquationInputControllerOptions {
-	getState(): AppState;
 	getWorkspace(): AnyWorkspace;
+	commit(): void;
 	render(renderStack: boolean): void;
 }
 
@@ -71,7 +69,7 @@ export class EquationInputController {
 		)
 			return;
 		matrix.entries[index] = value;
-		recomputeWorkspace(workspace);
+		this.options.commit();
 		this.finishNumericEdit(input);
 	}
 
@@ -90,7 +88,7 @@ export class EquationInputController {
 		)
 			return;
 		vector.coordinates[index] = value;
-		recomputeWorkspace(workspace);
+		this.options.commit();
 		this.finishNumericEdit(input);
 	}
 
@@ -102,8 +100,7 @@ export class EquationInputController {
 			MIN_MATRIX_DURATION_MS,
 			Math.min(MAX_MATRIX_DURATION_MS, value),
 		);
-		recomputeWorkspace(workspace);
-		this.resetPlayback();
+		this.options.commit();
 		this.options.render(false);
 		const output = this.stack.querySelector<HTMLElement>(
 			`[data-duration-output="${CSS.escape(id)}"]`,
@@ -153,7 +150,6 @@ export class EquationInputController {
 				renderedResultIds.some(
 					(id, index) => id !== currentResultIds[index],
 				));
-		this.resetPlayback();
 		this.options.render(resultStructureChanged);
 		if (validity.valid && !resultStructureChanged) this.updateResults();
 		if (resultStructureChanged) this.restoreEditedInput(editedInput);
@@ -224,10 +220,5 @@ export class EquationInputController {
 			input.selectionEnd,
 			input.selectionDirection ?? undefined,
 		);
-	}
-
-	private resetPlayback(): void {
-		const state = this.options.getState();
-		state.animation = resetPlayback(state.animation);
 	}
 }

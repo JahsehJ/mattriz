@@ -150,25 +150,21 @@ export function recomputeWorkspace<D extends Dimension>(
 export function restoreWorkspaceState<D extends Dimension>(
 	workspace: Workspace<D>,
 	document: WorkspaceDocument<D>,
-	fallbackDocument: WorkspaceDocument<D>,
+	fallbackEvaluation: WorkspaceEvaluation<D>,
 ): boolean {
 	if (
 		document.dimension !== workspace.dimension ||
-		fallbackDocument.dimension !== workspace.dimension
+		fallbackEvaluation.dimension !== workspace.dimension
 	)
 		return false;
 	const structuralError = validateWorkspaceDocument(document)[0];
 	if (structuralError) return false;
 	const current = evaluateWorkspace(document);
-	const fallback = current.evaluation
-		? current.evaluation
-		: evaluateWorkspace(fallbackDocument).evaluation;
-	if (!fallback) return false;
 
 	workspace.matrices = [...document.matrices];
 	workspace.vectors = [...document.vectors];
 	workspace.validity = current.validity;
-	workspace.lastValidEvaluation = fallback;
+	workspace.lastValidEvaluation = current.evaluation ?? fallbackEvaluation;
 	return true;
 }
 

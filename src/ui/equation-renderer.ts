@@ -214,27 +214,17 @@ export class EquationRenderer {
 
 	private matrixPresetName(preset: MatrixPreset): string {
 		const t = this.options.t;
-		const axisById: Readonly<Record<string, string>> = {
-			"reflect-x": "X",
-			"reflect-y": "Y",
-			"reflect-xy": "XY",
-			"reflect-xz": "XZ",
-			"reflect-yz": "YZ",
-			"rotate-x-45": "X",
-			"rotate-y-45": "Y",
-			"rotate-z-45": "Z",
-		};
-		const axis = axisById[preset.id] ?? "";
-		if (preset.kind === "reflection")
-			return t(
-				this.options.getWorkspace().dimension === 2
-					? "reflectionAxisPreset"
-					: "reflectionPlanePreset",
-				{ axis },
-			);
+		if (preset.subject.kind === "axis")
+			return t("reflectionAxisPreset", { axis: preset.subject.name });
+		if (preset.subject.kind === "plane")
+			return t("reflectionPlanePreset", { plane: preset.subject.name });
+		const axis =
+			preset.subject.kind === "axis-angle"
+				? ` ${t("aroundAxis", { axis: preset.subject.axis })}`
+				: "";
 		return t("rotationPreset", {
-			angle: 45,
-			axis: axis ? ` ${t("aroundAxis", { axis })}` : "",
+			angle: preset.subject.degrees,
+			axis,
 		});
 	}
 }
