@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-	setMatrixEntrySource,
-	setVectorCoordinateSource,
-} from "../domain/workspace";
+import { recomputeWorkspace } from "../domain/workspace";
 import { createInitialState } from "./state";
 import {
 	captureSessionSnapshot,
@@ -22,12 +19,9 @@ const cameras: CameraSnapshots = {
 describe("workspace sharing", () => {
 	it("round trips valid sessions", async () => {
 		const state = createInitialState();
-		setMatrixEntrySource(
-			state.workspaces[2],
-			state.workspaces[2].matrices[0].id,
-			0,
-			"2 + 3",
-		);
+		const workspace = state.workspaces[2];
+		workspace.matrices[0].entries[0] = "2 + 3";
+		recomputeWorkspace(workspace);
 		const snapshot = captureSessionSnapshot(state, 0, cameras);
 		const decoded = await decodeShareSession(
 			await encodeShareSession(snapshot),
@@ -42,13 +36,9 @@ describe("workspace sharing", () => {
 		const state = createInitialState();
 		const workspace = state.workspaces[2];
 		const stale = workspace.lastValidEvaluation;
-		setMatrixEntrySource(workspace, workspace.matrices[0].id, 0, "1/");
-		setVectorCoordinateSource(
-			workspace,
-			workspace.vectors[0].id,
-			0,
-			"999999",
-		);
+		workspace.matrices[0].entries[0] = "1/";
+		workspace.vectors[0].coordinates[0] = "999999";
+		recomputeWorkspace(workspace);
 		const decoded = await decodeShareSession(
 			await encodeShareSession(captureSessionSnapshot(state, 0, cameras)),
 		);
@@ -69,7 +59,8 @@ describe("workspace sharing", () => {
 	it("recomputes valid sources instead of trusting a persisted evaluation", async () => {
 		const state = createInitialState();
 		const workspace = state.workspaces[2];
-		setMatrixEntrySource(workspace, workspace.matrices[0].id, 0, "2 + 3");
+		workspace.matrices[0].entries[0] = "2 + 3";
+		recomputeWorkspace(workspace);
 		const decoded = await decodeShareSession(
 			await encodeShareSession(captureSessionSnapshot(state, 0, cameras)),
 		);

@@ -1,8 +1,5 @@
-import {
-	getTransformedVectors,
-	type AnyMatrixNode,
-	type AnyWorkspace,
-} from "../domain/workspace";
+import { type AnyMatrixNode, type AnyWorkspace } from "../domain/workspace";
+import { getTransformedVectors } from "../domain/workspace-evaluation";
 import type { Translate } from "../i18n";
 import {
 	applyEntryColumnTemplate,
@@ -107,7 +104,7 @@ export function renderResultMatrix(
 	const labels = evaluation.vectors
 		.map(
 			(vector) =>
-				`<div class="result-column-label" style="--vector:${vector.color}"><math class="vector-label" aria-label="${t("transformedVector", { label: vector.label })}">${renderVectorSymbol(vector.label, true)}</math><span class="vector-color-label" aria-hidden="true"></span></div>`,
+				`<div class="result-column-label" data-result-vector-id="${vector.id}" style="--vector:${vector.color}"><math class="vector-label" aria-label="${t("transformedVector", { label: vector.label })}">${renderVectorSymbol(vector.label, true)}</math><span class="vector-color-label" aria-hidden="true"></span></div>`,
 		)
 		.join("");
 	const entries = Array.from(
@@ -121,7 +118,7 @@ export function renderResultMatrix(
 				.join(""),
 	).join("");
 	return `
-    <article class="result-matrix-card result-matrix-card-${workspace.dimension}" ${workspace.validity.valid ? "" : "data-stale"} aria-label="${t("transformedVectorMatrix")}">
+    <article class="result-matrix-card result-matrix-card-${workspace.dimension}" ${workspace.validity.valid ? "" : 'data-stale aria-describedby="stale-result-status"'} aria-label="${t("transformedVectorMatrix")}">
       <div class="result-column-labels" style="grid-template-columns:${template}">${labels}</div>
       <div class="result-expression result-expression-${workspace.dimension}" style="grid-template-columns:${template}" role="group" aria-label="${t("transformedVectorColumns")}">${entries}</div>
       <div class="card-balance-row" aria-hidden="true"></div>

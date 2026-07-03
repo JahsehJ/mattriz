@@ -2,18 +2,18 @@ import { describe, expect, it } from "vitest";
 import {
 	MatrixNode,
 	Workspace,
-	MAX_WORKSPACE_NODES,
 	canAddWorkspaceNodes,
 	createWorkspace,
 	createMatrixNode,
 	createVectorNode,
+	recomputeWorkspace,
+	restoreWorkspaceState,
+} from "./workspace";
+import {
 	evaluateWorkspace,
 	getTransformedVectors,
-	replaceWorkspaceMatrices,
-	replaceWorkspaceVectors,
-	restoreWorkspaceState,
-	setMatrixDuration,
-} from "./workspace";
+} from "./workspace-evaluation";
+import { MAX_WORKSPACE_NODES } from "./policy";
 import {
 	type AnimationFrame,
 	type AnimationMode,
@@ -29,6 +29,22 @@ function workspaceWith(matrices: MatrixNode<2>[]): Workspace<2> {
 	replaceWorkspaceVectors(workspace, []);
 	replaceWorkspaceMatrices(workspace, matrices);
 	return workspace;
+}
+
+function replaceWorkspaceMatrices<D extends 2 | 3>(
+	workspace: Workspace<D>,
+	matrices: MatrixNode<D>[],
+): void {
+	workspace.matrices = [...matrices];
+	recomputeWorkspace(workspace);
+}
+
+function replaceWorkspaceVectors<D extends 2 | 3>(
+	workspace: Workspace<D>,
+	vectors: Workspace<D>["vectors"],
+): void {
+	workspace.vectors = [...vectors];
+	recomputeWorkspace(workspace);
 }
 
 function frame(mode: AnimationMode, elapsedMs: number): AnimationFrame {
@@ -60,56 +76,6 @@ describe("workspace lifecycle", () => {
 		expect(canAddWorkspaceNodes(workspace, "vectors")).toBe(false);
 	});
 
-	it("rejects vectors whose dimension does not match the workspace", () => {
-		const workspace = workspaceWith([]);
-		const wrongDimension = createVectorNode(3, "v1", "#ffffff");
-
-		expect(
-			replaceWorkspaceVectors(workspace, [
-				wrongDimension,
-			] as unknown as typeof workspace.vectors),
-		).toBe(false);
-		expect(workspace.vectors).toEqual([]);
-	});
-
-	it("rejects duplicate matrix and vector identities atomically", () => {
-		const matrix = createMatrixNode(2, "A");
-		const vector = createVectorNode(2, "v1", "#ffffff");
-		const workspace = workspaceWith([]);
-
-		expect(replaceWorkspaceMatrices(workspace, [matrix, matrix])).toBe(
-			false,
-		);
-		expect(replaceWorkspaceVectors(workspace, [vector, vector])).toBe(
-			false,
-		);
-		expect(workspace.matrices).toEqual([]);
-		expect(workspace.vectors).toEqual([]);
-	});
-
-	it("rejects identities already used by the opposite node kind", () => {
-		const matrix = createMatrixNode(2, "A");
-		const vector = createVectorNode(2, "v1", "#ffffff");
-		const matrixWorkspace = workspaceWith([matrix]);
-		const vectorWorkspace = workspaceWith([]);
-		expect(replaceWorkspaceVectors(vectorWorkspace, [vector])).toBe(true);
-
-		expect(
-			replaceWorkspaceVectors(matrixWorkspace, [
-				{ ...vector, id: matrix.id },
-			]),
-		).toBe(false);
-		expect(matrixWorkspace.vectors).toEqual([]);
-
-		expect(
-			replaceWorkspaceMatrices(vectorWorkspace, [
-				{ ...matrix, id: vector.id },
-			]),
-		).toBe(false);
-		expect(vectorWorkspace.matrices).toEqual([]);
-		expect(vectorWorkspace.vectors).toEqual([vector]);
-	});
-
 	it("rejects malformed draft shapes in node factories", () => {
 		expect(() => createMatrixNode(2, "A", undefined, ["1"])).toThrow(
 			"Invalid draft values",
@@ -122,24 +88,13 @@ describe("workspace lifecycle", () => {
 		).toThrow("Invalid draft values");
 	});
 
-	it("reports structural replacement failures consistently", () => {
-		const workspace = createWorkspace(2);
-		const matrix = createMatrixNode(2, "A");
-		const vector = createVectorNode(2, "v1", "#ffffff");
-
-		expect(
-			replaceWorkspaceMatrices(workspace, [
-				{ ...matrix, entries: ["1"] },
-			]),
-		).toBe(false);
-		expect(
-			replaceWorkspaceVectors(workspace, [
-				{
-					...vector,
-					coordinates: [1, "2"] as unknown as string[],
-				},
-			]),
-		).toBe(false);
+	it("rejects out-of-policy numeric values in node factories", () => {
+		expect(() => createMatrixNode(2, "A", [101, 0, 0, 1])).toThrow(
+			"Invalid numeric values",
+		);
+		expect(() =>
+			createVectorNode(2, "v1", "#ffffff", [Number.NaN, 1]),
+		).toThrow("Invalid numeric values");
 	});
 
 	it("rejects a malformed restored workspace atomically", () => {
@@ -153,6 +108,41 @@ describe("workspace lifecycle", () => {
 
 		expect(restoreWorkspaceState(workspace, invalid, invalid)).toBe(false);
 		expect(workspace.matrices).toEqual(originalMatrices);
+	});
+
+	it("rejects restored workspaces with mismatched dimensions or no valid fallback", () => {
+		const workspace = createWorkspace(2);
+		const wrongDimension = createWorkspace(3);
+		const invalid = {
+			...workspace,
+			matrices: [
+				{
+					...workspace.matrices[0],
+					entries: ["invalid", "0", "0", "1"],
+				},
+			],
+		};
+
+		expect(
+			restoreWorkspaceState(
+				workspace,
+				wrongDimension as unknown as Workspace<2>,
+				workspace,
+			),
+		).toBe(false);
+		expect(restoreWorkspaceState(workspace, invalid, invalid)).toBe(false);
+	});
+
+	it("reports the structural node limit", () => {
+		const workspace = createWorkspace(2);
+		workspace.vectors = Array.from(
+			{ length: MAX_WORKSPACE_NODES + 1 },
+			(_, index) => createVectorNode(2, `v${index}`, "#ffffff"),
+		);
+
+		expect(
+			evaluateWorkspace(workspace).validity.structuralErrors,
+		).toContain("node-limit-exceeded");
 	});
 
 	it("reports malformed workspace structure without evaluating it", () => {
@@ -198,34 +188,9 @@ describe("workspace lifecycle", () => {
 			coordinates: ["NaN", "1"],
 		};
 
-		expect(replaceWorkspaceMatrices(workspace, [invalidMatrix])).toBe(true);
-		expect(replaceWorkspaceVectors(workspace, [invalidVector])).toBe(true);
+		replaceWorkspaceMatrices(workspace, [invalidMatrix]);
+		replaceWorkspaceVectors(workspace, [invalidVector]);
 		expect(workspace.lastValidEvaluation).toEqual(evaluation);
-	});
-
-	it("clamps finite matrix durations and rejects non-finite updates", () => {
-		const matrix = createMatrixNode(2, "A");
-		const workspace = workspaceWith([matrix]);
-
-		expect(setMatrixDuration(workspace, matrix.id, 1)).toBe(true);
-		expect(workspace.matrices[0].durationMs).toBe(100);
-		expect(setMatrixDuration(workspace, matrix.id, 10_000)).toBe(true);
-		expect(workspace.matrices[0].durationMs).toBe(3_000);
-		expect(setMatrixDuration(workspace, matrix.id, Number.NaN)).toBe(false);
-		expect(setMatrixDuration(workspace, "missing", 500)).toBe(false);
-		expect(workspace.matrices[0].durationMs).toBe(3_000);
-	});
-
-	it("rejects invalid matrix durations during replacement", () => {
-		const workspace = workspaceWith([createMatrixNode(2, "A")]);
-		const original = workspace.matrices;
-		const invalid = {
-			...createMatrixNode(2, "B"),
-			durationMs: Number.NaN,
-		};
-
-		expect(replaceWorkspaceMatrices(workspace, [invalid])).toBe(false);
-		expect(workspace.matrices).toEqual(original);
 	});
 
 	it("shows the committed transform while idle, not uncommitted matrix edits", () => {

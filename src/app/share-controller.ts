@@ -6,7 +6,6 @@ import {
 } from "../i18n";
 import { getAlternateLocaleUrl, getAppRootUrl } from "./locale-routing";
 import {
-	MAX_SHARE_FRAGMENT_LENGTH,
 	encodeShareSession,
 	type CameraSnapshots,
 } from "../infrastructure/session-codec";
@@ -49,7 +48,6 @@ export class ShareController {
 				new URL(metadata.path, appRoot).href,
 				await this.encodeCurrentSession(),
 			);
-			this.assertUrlFits(url);
 			window.location.assign(url);
 		} catch (error) {
 			this.options.language.value = this.options.locale;
@@ -61,7 +59,6 @@ export class ShareController {
 		try {
 			const url = new URL(window.location.href);
 			url.hash = `s=${await this.encodeCurrentSession()}`;
-			this.assertUrlFits(url.href);
 			window.history.replaceState(window.history.state, "", url);
 			this.options.shareLink.value = url.href;
 			this.options.shareDialog.showModal();
@@ -90,12 +87,6 @@ export class ShareController {
 		return encodeShareSession(
 			captureSessionSnapshot(state, elapsedMs, this.options.getCameras()),
 		);
-	}
-
-	private assertUrlFits(url: string): void {
-		if (url.length > MAX_SHARE_FRAGMENT_LENGTH) {
-			throw new Error("Share payload is too large");
-		}
 	}
 
 	private setStatus(key: MessageKey): void {

@@ -1,4 +1,8 @@
-import { canAddWorkspaceNodes, type AnyWorkspace } from "../domain/workspace";
+import {
+	areWorkspaceMatricesValid,
+	canAddWorkspaceNodes,
+	type AnyWorkspace,
+} from "../domain/workspace";
 import {
 	analyzeRealEigenbasis,
 	analyzeRepresentativeRealEigenvector,
@@ -26,12 +30,14 @@ export class EquationRenderer {
 		const workspace = this.options.getWorkspace();
 		const hasVectors = workspace.vectors.length > 0;
 		const hasResults = workspace.lastValidEvaluation.vectors.length > 0;
+		const stale = !workspace.validity.valid;
 		const results = hasResults
 			? `
-      <math class="equation-equals" ${workspace.validity.valid ? "" : "data-stale"} aria-label="${this.options.t("equals")}">
+      <math class="equation-equals" ${stale ? 'data-stale aria-describedby="stale-result-status"' : ""} aria-label="${this.options.t("equals")}">
         <mo>=</mo>
       </math>
       <section class="equation-right" aria-label="${this.options.t("computedVectors")}">
+        <div id="stale-result-status" class="visually-hidden" data-stale-result-status role="status" aria-live="polite">${stale ? this.options.t("staleResults") : ""}</div>
         ${renderResultMatrix(workspace, this.options.t)}
       </section>
     `
@@ -50,7 +56,7 @@ export class EquationRenderer {
 	}
 
 	updatePresetAvailability(): void {
-		const { basisAvailable, vectorAvailable } =
+		const { basisAvailable, vectorAvailable, matricesValid } =
 			this.getVectorPresetAvailability();
 		this.options.root
 			.querySelectorAll<HTMLButtonElement>(
@@ -63,6 +69,11 @@ export class EquationRenderer {
 			.querySelectorAll<HTMLElement>("[data-eigenbasis-unavailable]")
 			.forEach((message) => {
 				message.toggleAttribute("hidden", basisAvailable);
+				message.textContent = this.options.t(
+					matricesValid
+						? "eigenbasisUnavailable"
+						: "eigenPresetsRequireValidMatrices",
+				);
 			});
 		this.options.root
 			.querySelectorAll<HTMLButtonElement>(
@@ -75,6 +86,11 @@ export class EquationRenderer {
 			.querySelectorAll<HTMLElement>("[data-eigenvector-unavailable]")
 			.forEach((message) => {
 				message.toggleAttribute("hidden", vectorAvailable);
+				message.textContent = this.options.t(
+					matricesValid
+						? "eigenvectorUnavailable"
+						: "eigenPresetsRequireValidMatrices",
+				);
 			});
 	}
 
@@ -142,8 +158,6 @@ export class EquationRenderer {
 
 	private renderVectorAddControl(positionClass: string): string {
 		const workspace = this.options.getWorkspace();
-		const { basisAvailable, vectorAvailable } =
-			this.getVectorPresetAvailability();
 		const addDisabled = canAddWorkspaceNodes(workspace, "vectors")
 			? ""
 			: "disabled";
@@ -155,10 +169,10 @@ export class EquationRenderer {
       <details class="preset-menu popup-menu">
         <summary class="preset-toggle" aria-label="${this.options.t("vectorPresets")}" title="${this.options.t("vectorPresets")}" aria-haspopup="menu" aria-expanded="false"></summary>
         <div class="preset-menu-panel popup-menu-panel" role="menu" aria-label="${this.options.t("vectorPresets")}">
-          <button type="button" role="menuitem" data-action="add-eigenvector" ${vectorAvailable ? "" : "disabled"}>${this.options.t("oneEigenvector")}</button>
-          <span class="preset-unavailable" data-eigenvector-unavailable ${vectorAvailable ? "hidden" : ""}>${this.options.t("eigenvectorUnavailable")}</span>
-          <button type="button" role="menuitem" data-action="add-eigenbasis" ${basisAvailable ? "" : "disabled"}>${this.options.t("allEigenbasis")}</button>
-          <span class="preset-unavailable" data-eigenbasis-unavailable ${basisAvailable ? "hidden" : ""}>${this.options.t("eigenbasisUnavailable")}</span>
+          <button type="button" role="menuitem" data-action="add-eigenvector" disabled>${this.options.t("oneEigenvector")}</button>
+          <span class="preset-unavailable" data-eigenvector-unavailable hidden></span>
+          <button type="button" role="menuitem" data-action="add-eigenbasis" disabled>${this.options.t("allEigenbasis")}</button>
+          <span class="preset-unavailable" data-eigenbasis-unavailable hidden></span>
         </div>
       </details>
     </div>
@@ -168,8 +182,15 @@ export class EquationRenderer {
 	private getVectorPresetAvailability(): {
 		basisAvailable: boolean;
 		vectorAvailable: boolean;
+		matricesValid: boolean;
 	} {
 		const workspace = this.options.getWorkspace();
+		if (!areWorkspaceMatricesValid(workspace))
+			return {
+				basisAvailable: false,
+				vectorAvailable: false,
+				matricesValid: false,
+			};
 		const transform = workspace.lastValidEvaluation.totalTransform;
 		const basis = analyzeRealEigenbasis(workspace.dimension, transform);
 		const representative = analyzeRepresentativeRealEigenvector(
@@ -187,6 +208,7 @@ export class EquationRenderer {
 				),
 			),
 			vectorAvailable: representative.kind === "vector" && vectorCapacity,
+			matricesValid: true,
 		};
 	}
 

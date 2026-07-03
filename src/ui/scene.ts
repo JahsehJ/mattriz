@@ -38,6 +38,10 @@ const LABEL_OFFSET = 0.2;
 const LABEL_SIZE = 0.34;
 const MIN_DIRECTION_LENGTH = 0.001;
 const DEFAULT_3D_CAMERA_POSITION: Vec3 = [7, 7, 7];
+const SCRATCH_ENDPOINT = new THREE.Vector3();
+const SCRATCH_DIRECTION = new THREE.Vector3();
+const SCRATCH_UP = new THREE.Vector3(0, 1, 0);
+const SCRATCH_MATRIX = new THREE.Matrix4();
 
 interface ArrowVisual {
 	group: THREE.Group;
@@ -390,7 +394,9 @@ export class MatrixScene {
 		this.gridPlanes.yz.visible = visible && dimension === 3;
 
 		this.gridGroup.matrixAutoUpdate = false;
-		this.gridGroup.matrix.copy(toMatrix4(dimension, matrix));
+		this.gridGroup.matrix.copy(
+			setMatrix4(SCRATCH_MATRIX, dimension, matrix),
+		);
 	}
 
 	private updateAxisLabels(dimension: Dimension, matrix: MatrixValues): void {
@@ -432,9 +438,8 @@ export class MatrixScene {
 		matrix: MatrixFor<D>,
 		vectors: readonly RenderVector<D>[],
 	): void {
-		const activeIds = new Set(vectors.map((vector) => vector.id));
 		for (const [id, visual] of this.vectorVisuals) {
-			if (activeIds.has(id)) continue;
+			if (vectors.some((vector) => vector.id === id)) continue;
 			this.root.remove(visual.arrow.group, visual.label);
 			disposeArrowVisual(visual.arrow);
 			disposeLabel(visual.label);
@@ -497,7 +502,7 @@ export class MatrixScene {
 		target: Vec3,
 		zLift: number,
 	): void {
-		const endpoint = toThree(target);
+		const endpoint = SCRATCH_ENDPOINT.fromArray(target);
 		const length = endpoint.length();
 		label.visible = length >= MIN_DIRECTION_LENGTH;
 		if (!label.visible) return;
@@ -533,12 +538,12 @@ export class MatrixScene {
 		dimension: Dimension,
 		zLift: number,
 	): void {
-		const end = toThree(target);
+		const end = SCRATCH_ENDPOINT.fromArray(target);
 		const length = end.length();
 		arrow.group.visible = length >= MIN_DIRECTION_LENGTH;
 		if (!arrow.group.visible) return;
 
-		const direction = end.clone().normalize();
+		const direction = SCRATCH_DIRECTION.copy(end).normalize();
 		const thicknessScale = Math.min(1, length / 0.25);
 		const shaftRadius = ARROW_SHAFT_RADIUS * thicknessScale;
 		const headLength = Math.min(ARROW_SHAFT_RADIUS * 4, length * 0.4);
@@ -553,10 +558,7 @@ export class MatrixScene {
 		arrow.head.material = material;
 		arrow.head.scale.set(headRadius, headLength, headRadius);
 		arrow.head.position.y = shaftLength + headLength / 2;
-		arrow.group.quaternion.setFromUnitVectors(
-			new THREE.Vector3(0, 1, 0),
-			direction,
-		);
+		arrow.group.quaternion.setFromUnitVectors(SCRATCH_UP, direction);
 		arrow.group.position.set(0, 0, dimension === 2 ? zLift : 0);
 	}
 }
@@ -574,10 +576,6 @@ function transformPoint(
 	return dimension === 2
 		? [transformed[0], transformed[1], 0]
 		: (transformed as Vec3);
-}
-
-function toThree(point: Vec3): THREE.Vector3 {
-	return new THREE.Vector3(point[0], point[1], point[2]);
 }
 
 function createGridPlane(plane: "xy" | "xz" | "yz"): THREE.Group {
@@ -699,8 +697,11 @@ function pushGridLine(
 	if (plane === "yz") positions.push(0, a1, a2, 0, b1, b2);
 }
 
-function toMatrix4(dimension: Dimension, matrix: MatrixValues): THREE.Matrix4 {
-	const result = new THREE.Matrix4();
+function setMatrix4(
+	result: THREE.Matrix4,
+	dimension: Dimension,
+	matrix: MatrixValues,
+): THREE.Matrix4 {
 	if (dimension === 2) {
 		const m = matrix as Mat2;
 		result.set(m[0], m[1], 0, 0, m[2], m[3], 0, 0, 0, 0, 1, 0, 0, 0, 0, 1);

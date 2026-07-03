@@ -1,5 +1,5 @@
 import type { Dimension, MatrixFor, VectorFor } from "../domain/math";
-import { MAX_WORKSPACE_NODES } from "../domain/workspace";
+import { MAX_WORKSPACE_NODES } from "../domain/policy";
 import type { AnimationMode } from "../domain/animation";
 import {
 	MAX_ABSOLUTE_INPUT_VALUE,

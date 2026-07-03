@@ -88,10 +88,13 @@ export function captureSessionSnapshot(
 	};
 }
 
-export function restoreSessionSnapshot(snapshot: SessionSnapshot): AppState {
-	const state = createInitialState(() => crypto.randomUUID());
-	restoreWorkspace(state.workspaces[2], snapshot.workspaces[2]);
-	restoreWorkspace(state.workspaces[3], snapshot.workspaces[3]);
+export function restoreSessionSnapshot(
+	snapshot: SessionSnapshot,
+	createId: () => string = () => crypto.randomUUID(),
+): AppState {
+	const state = createInitialState(createId);
+	restoreWorkspace(state.workspaces[2], snapshot.workspaces[2], createId);
+	restoreWorkspace(state.workspaces[3], snapshot.workspaces[3], createId);
 	state.appliedTransforms[2] = cloneMatrix<2>(
 		snapshot.workspaces[2].appliedTransform,
 	);
@@ -154,17 +157,18 @@ function captureWorkspace<D extends Dimension>(
 function restoreWorkspace<D extends Dimension>(
 	workspace: Workspace<D>,
 	snapshot: WorkspaceSnapshot<D>,
+	createId: () => string,
 ): void {
 	const dimension = workspace.dimension;
 	const matrices = snapshot.matrices.map((matrix) => ({
-		id: crypto.randomUUID(),
+		id: createId(),
 		dimension,
 		label: matrix.label,
 		entries: [...matrix.sources],
 		durationMs: matrix.durationMs,
 	}));
 	const vectors = snapshot.vectors.map((vector) => ({
-		id: crypto.randomUUID(),
+		id: createId(),
 		dimension,
 		label: vector.label,
 		coordinates: [...vector.sources],

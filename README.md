@@ -11,7 +11,6 @@ transformations.
 - Matrix presets and eigenvector computation.
 - Mathematical expressions with fractions, powers, radicals, and trigonometry.
 - Step and composed-transform animation with per-matrix durations.
-- MathML equation structure with HTML numeric inputs.
 - Orthographic 2D and perspective 3D cameras with independent session state.
 - Installable progressive web app with offline app-shell support.
 
@@ -32,14 +31,6 @@ Run the linter, formatting check, test suite, and production build:
 
 ```sh
 npm run check
-```
-
-Install Playwright's headless-only Chromium shell once, then run the browser
-tests against a production build:
-
-```sh
-npx playwright install chromium --only-shell
-npm run test:e2e
 ```
 
 Set `VITE_SITE_URL` to the absolute public application URL when building for

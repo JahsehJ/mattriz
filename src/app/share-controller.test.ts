@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { MAX_SHARE_FRAGMENT_LENGTH } from "../infrastructure/session-codec";
 import { createInitialState } from "./state";
 import { ShareController } from "./share-controller";
 
@@ -107,9 +106,19 @@ describe("share controller", () => {
 		expect(status.textContent).toBe("copyFailed");
 	});
 
-	it("reports oversized payloads without changing browser history", async () => {
-		encodeShareSession.mockResolvedValue(
-			"x".repeat(MAX_SHARE_FRAGMENT_LENGTH + 1),
+	it("does not count the deployment URL toward the payload limit", async () => {
+		encodeShareSession.mockResolvedValue("x".repeat(32_768));
+		const { controller, showModal } = setup();
+
+		await controller.shareWorkspace();
+
+		expect(replaceState).toHaveBeenCalledOnce();
+		expect(showModal).toHaveBeenCalledOnce();
+	});
+
+	it("reports payload limits enforced by the codec", async () => {
+		encodeShareSession.mockRejectedValue(
+			new Error("Share payload is too large"),
 		);
 		const { controller, status, showModal } = setup();
 

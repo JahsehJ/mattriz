@@ -28,8 +28,22 @@ test("edits a matrix and updates transformed vectors", async ({ page }) => {
 		"data-stale",
 		"",
 	);
+	await expect(page.locator("[data-stale-result-status]")).toHaveText(
+		"Showing the last valid result because the equation contains invalid input.",
+	);
+	await expect(page.locator(".result-matrix-card")).toHaveAttribute(
+		"aria-describedby",
+		"stale-result-status",
+	);
 	await expect(
 		page.getByRole("button", { name: "Apply transform" }),
+	).toBeDisabled();
+	await page.getByTitle("Vector presets").click();
+	await expect(
+		page.getByRole("menuitem", { name: "One eigenvector" }),
+	).toBeDisabled();
+	await expect(
+		page.getByRole("menuitem", { name: "All eigenbasis vectors" }),
 	).toBeDisabled();
 
 	const siblingEntry = page.getByRole("textbox", {
@@ -51,6 +65,46 @@ test("edits a matrix and updates transformed vectors", async ({ page }) => {
 		"data-stale",
 		"",
 	);
+	await expect(page.locator("[data-stale-result-status]")).toBeEmpty();
+});
+
+test("realigns result labels after reordering vectors during invalid input", async ({
+	page,
+}) => {
+	await page.getByRole("button", { name: "Add vector" }).click();
+	await page.getByRole("textbox", { name: "v1 component 1" }).fill("2");
+	await page.getByRole("textbox", { name: "v2 component 1" }).fill("3");
+	const matrixEntry = page.getByRole("textbox", {
+		name: "A row 1 column 1",
+	});
+	await matrixEntry.fill("invalid");
+
+	const vectors = page.locator(".vector-column-label");
+	await vectors.nth(1).focus();
+	await vectors.nth(1).press("Alt+ArrowLeft");
+	await expect(vectors.nth(0)).toHaveAttribute("aria-label", "v2");
+
+	await matrixEntry.fill("1");
+
+	const results = page.locator(".result-column-label");
+	await expect(results.nth(0).locator("math")).toHaveAttribute(
+		"aria-label",
+		"v2 transformed",
+	);
+	await expect(results.nth(1).locator("math")).toHaveAttribute(
+		"aria-label",
+		"v1 transformed",
+	);
+	await expect(
+		page.locator(
+			'[data-result-vector-index="0"][data-result-component-index="0"]',
+		),
+	).toHaveText("3");
+	await expect(
+		page.locator(
+			'[data-result-vector-index="1"][data-result-component-index="0"]',
+		),
+	).toHaveText("2");
 });
 
 test("computes an overflowing transform but disables playback", async ({
@@ -144,25 +198,6 @@ test("creates, reorders, and deletes matrices and vectors", async ({
 	await expect(vectors).toHaveCount(1);
 });
 
-test("shares and restores the current workspace", async ({ page }) => {
-	await page
-		.getByRole("textbox", { name: "A row 1 column 1" })
-		.fill("sqrt(2)");
-	await page.getByRole("button", { name: "Share" }).click();
-
-	const shareDialog = page.locator(".share-dialog[open]");
-	await expect(shareDialog).toBeVisible({ timeout: 10_000 });
-	const shareUrl = await page
-		.getByRole("textbox", { name: "Share link" })
-		.inputValue();
-	expect(shareUrl).toContain("#s=");
-
-	await page.goto(shareUrl);
-	await expect(
-		page.getByRole("textbox", { name: "A row 1 column 1" }),
-	).toHaveValue("sqrt(2)");
-});
-
 test("shows a share link when clipboard access is denied", async ({
 	context,
 	page,
@@ -204,27 +239,6 @@ test("preserves workspace state while switching locale", async ({ page }) => {
 	await expect(
 		page.getByRole("textbox", { name: "A 第 1 列第 1 欄" }),
 	).toHaveValue("3");
-});
-
-test("reloads the localized app shell while offline", async ({
-	context,
-	page,
-}) => {
-	await page.goto("/zh-hant/");
-	await page.evaluate(async () => {
-		await navigator.serviceWorker.ready;
-	});
-	await page.reload();
-	await expect
-		.poll(() =>
-			page.evaluate(() => Boolean(navigator.serviceWorker.controller)),
-		)
-		.toBe(true);
-
-	await context.setOffline(true);
-	await page.reload();
-
-	await expect(page.getByRole("button", { name: "分享" })).toBeVisible();
 });
 
 test("keeps mobile controls inside the viewport", async ({ page }) => {

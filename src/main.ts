@@ -1,9 +1,7 @@
 import "./styles.css";
 import packageJson from "../package.json";
 import { MatrixScene } from "./ui/scene";
-import { AppState, createInitialState, getWorkspace } from "./app/state";
-import { getAnimationDuration } from "./domain/animation";
-import { getPlaybackElapsed, resetPlayback } from "./app/playback-state";
+import { AppState, createInitialState } from "./app/state";
 import { getRenderState } from "./app/render-state";
 import { Dimension } from "./domain/math";
 import { Locale, MessageKey, translate } from "./i18n";
@@ -11,24 +9,17 @@ import { getLocaleFromLanguageTag } from "./app/locale-routing";
 import { registerAppServiceWorker } from "./app/service-worker-registration";
 import { decodeShareSession } from "./infrastructure/session-codec";
 import { restoreSessionSnapshot } from "./app/session-snapshot";
-import { WorkspaceController } from "./app/workspace-controller";
+import { ApplicationController } from "./app/application-controller";
 import { ShareController } from "./app/share-controller";
-import { PlaybackController } from "./app/playback-controller";
 import { renderAppShell } from "./ui/app-shell";
 import { DragController } from "./ui/drag-controller";
-import { UiController } from "./ui/ui-controller";
-import {
-	updateMatrixGridWidth,
-	updateVectorColumnWidths,
-} from "./ui/equation-cards";
-import { EquationRenderer } from "./ui/equation-renderer";
 
-let state: AppState = createInitialState(() => crypto.randomUUID());
+const createId = (): string => crypto.randomUUID();
+let state: AppState = createInitialState(createId);
 const appVersion = packageJson.version;
 const locale: Locale = getLocaleFromLanguageTag(document.documentElement.lang);
 const t = (key: MessageKey, values?: Record<string, string | number>): string =>
 	translate(locale, key, values);
-const maxNumericInputLength = 64;
 
 const app = document.querySelector<HTMLDivElement>("#app");
 if (!app) {
@@ -40,93 +31,60 @@ root.innerHTML = renderAppShell(t, appVersion);
 root.inert = true;
 root.setAttribute("aria-busy", "true");
 
-const canvas = root.querySelector<HTMLCanvasElement>(".scene-canvas");
-const matrixStack = root.querySelector<HTMLElement>("[data-matrix-stack]");
-const animationMode = root.querySelector<HTMLSelectElement>(
+function requireElement<T extends Element>(selector: string): T {
+	const element = root.querySelector<T>(selector);
+	if (!element) throw new Error(`Missing app control: ${selector}`);
+	return element;
+}
+
+const canvas = requireElement<HTMLCanvasElement>(".scene-canvas");
+const matrixStack = requireElement<HTMLElement>("[data-matrix-stack]");
+const animationMode = requireElement<HTMLSelectElement>(
 	"[data-animation-mode]",
 );
-const language = root.querySelector<HTMLSelectElement>("[data-language]");
-const aboutDialog = root.querySelector<HTMLDialogElement>(".about-dialog");
-const shareDialog = root.querySelector<HTMLDialogElement>(".share-dialog");
-const shareLink = root.querySelector<HTMLInputElement>("[data-share-link]");
-const shareErrorDialog = root.querySelector<HTMLDialogElement>(
+const language = requireElement<HTMLSelectElement>("[data-language]");
+const aboutDialog = requireElement<HTMLDialogElement>(".about-dialog");
+const shareDialog = requireElement<HTMLDialogElement>(".share-dialog");
+const shareLink = requireElement<HTMLInputElement>("[data-share-link]");
+const shareErrorDialog = requireElement<HTMLDialogElement>(
 	".share-error-dialog",
 );
-const resetWorkspaceDialog = root.querySelector<HTMLDialogElement>(
+const resetWorkspaceDialog = requireElement<HTMLDialogElement>(
 	".reset-workspace-dialog",
 );
-if (
-	!canvas ||
-	!matrixStack ||
-	!animationMode ||
-	!language ||
-	!aboutDialog ||
-	!shareDialog ||
-	!shareLink ||
-	!shareErrorDialog ||
-	!resetWorkspaceDialog
-) {
-	throw new Error("Missing app controls");
-}
-const stackElement = matrixStack;
-const animationModeElement = animationMode;
-const languageElement = language;
-languageElement.value = locale;
-const shareDialogElement = shareDialog;
-const shareLinkElement = shareLink;
-const shareErrorDialogElement = shareErrorDialog;
-const resetWorkspaceDialogElement = resetWorkspaceDialog;
+language.value = locale;
 
 let animationFrame = 0;
 let disposed = false;
 const scene = new MatrixScene(canvas, scheduleRender);
-const equationRenderer = new EquationRenderer({
+const appController = new ApplicationController(
 	root,
+	matrixStack,
+	animationMode,
 	t,
-	getWorkspace: () => getWorkspace(state),
-	maxInputLength: maxNumericInputLength,
-});
-const uiController = new UiController({
-	root,
-	stack: stackElement,
-	animationMode: animationModeElement,
-	t,
-	getState: () => state,
-	renderEquation: () => equationRenderer.render(),
-	updatePresetAvailability: () => equationRenderer.updatePresetAvailability(),
-	scheduleRender,
-});
-const playbackController = new PlaybackController({
-	getState: () => state,
-	render: (renderStack) => uiController.render(renderStack),
-	now: () => performance.now(),
-});
-const workspaceController = new WorkspaceController(root, stackElement, t, {
-	getState: () => state,
-	commit: ({ renderStack = true, updateResults = false } = {}) => {
-		state.animation = resetPlayback(state.animation);
-		uiController.render(renderStack);
-		if (updateResults) uiController.updateResults();
+	{
+		getState: () => state,
+		scheduleRender,
+		now: () => performance.now(),
+		createId,
 	},
-	updateMatrixWidth: updateMatrixGridWidth,
-	updateVectorWidths: updateVectorColumnWidths,
-});
+);
 const shareController = new ShareController({
 	root,
-	language: languageElement,
-	shareDialog: shareDialogElement,
-	shareLink: shareLinkElement,
+	language,
+	shareDialog,
+	shareLink,
 	locale,
 	t,
 	getState: () => state,
 	getCameras: () => scene.getCameraSnapshots(),
 });
-const dragController = new DragController(stackElement, {
+const dragController = new DragController(matrixStack, {
 	moveMatrix: (id, targetId, side) =>
-		workspaceController.moveMatrix(id, targetId, side),
+		appController.moveMatrix(id, targetId, side),
 	moveVector: (id, targetId, side) =>
-		workspaceController.moveVector(id, targetId, side),
-	createVectorPreview: (id) => equationRenderer.createVectorDragPreview(id),
+		appController.moveVector(id, targetId, side),
+	createVectorPreview: (id) => appController.createVectorPreview(id),
 });
 
 root.addEventListener("click", (event) => {
@@ -152,24 +110,23 @@ root.addEventListener("click", (event) => {
 		state.activeDimension = Number(
 			dimensionButton.dataset.dimension,
 		) as Dimension;
-		playbackController.reset();
+		appController.resetPlayback();
 	}
 
 	if (!actionButton) return;
 	const action = actionButton.dataset.action;
-	if (action === "add-matrix") workspaceController.addMatrix();
-	if (action === "add-vector") workspaceController.addVector();
+	if (action === "add-matrix") appController.addMatrix();
+	if (action === "add-vector") appController.addVector();
 	if (action === "add-matrix-preset" && actionButton.dataset.presetId)
-		workspaceController.addMatrixPreset(actionButton.dataset.presetId);
-	if (action === "add-eigenbasis") workspaceController.addEigenbasis();
+		appController.addMatrixPreset(actionButton.dataset.presetId);
+	if (action === "add-eigenbasis") appController.addEigenbasis();
 	if (action === "add-eigenvector")
-		workspaceController.addRepresentativeEigenvector();
-	if (action === "play") playbackController.toggle();
-	if (action === "reset") playbackController.resetTransform();
+		appController.addRepresentativeEigenvector();
+	if (action === "play") appController.togglePlayback();
+	if (action === "reset") appController.resetTransform();
 	if (action === "reset-view") resetView();
-	if (action === "open-reset-workspace")
-		resetWorkspaceDialogElement.showModal();
-	if (action === "close-reset-workspace") resetWorkspaceDialogElement.close();
+	if (action === "open-reset-workspace") resetWorkspaceDialog.showModal();
+	if (action === "close-reset-workspace") resetWorkspaceDialog.close();
 	if (action === "confirm-reset-workspace") resetWorkspace();
 	if (action === "share") void shareController.shareWorkspace();
 	if (action === "close-share-dialog") shareDialog.close();
@@ -177,9 +134,9 @@ root.addEventListener("click", (event) => {
 	if (action === "close-about") aboutDialog.close();
 	if (action === "close-share-error") shareErrorDialog.close();
 	if (action === "delete-matrix" && actionButton.dataset.id)
-		workspaceController.deleteMatrix(actionButton.dataset.id);
+		appController.deleteMatrix(actionButton.dataset.id);
 	if (action === "delete-vector" && actionButton.dataset.id)
-		workspaceController.deleteVector(actionButton.dataset.id);
+		appController.deleteVector(actionButton.dataset.id);
 });
 
 document.addEventListener("click", (event) => {
@@ -201,7 +158,7 @@ document.addEventListener("keydown", (event) => {
 		);
 		if (sortable === event.target) {
 			event.preventDefault();
-			workspaceController.moveFocusedItem(
+			appController.moveFocusedItem(
 				sortable,
 				event.key === "ArrowLeft" ? -1 : 1,
 			);
@@ -258,6 +215,8 @@ root.addEventListener(
 			String(menu.open),
 		);
 		if (!menu.open) return;
+		if (menu.querySelector("[data-action='add-eigenvector']"))
+			appController.updateVectorPresetAvailability();
 		root.querySelectorAll<HTMLDetailsElement>(".popup-menu[open]").forEach(
 			(other) => {
 				if (other !== menu) other.open = false;
@@ -269,18 +228,17 @@ root.addEventListener(
 
 root.addEventListener("input", (event) => {
 	if (event.target instanceof HTMLInputElement)
-		workspaceController.handleInput(event.target);
+		appController.handleInput(event.target);
 });
 
 root.addEventListener("change", (event) => {
 	const target = event.target as HTMLElement;
-	if (target === animationModeElement) {
+	if (target === animationMode) {
 		state.animation.mode =
-			animationModeElement.value === "composed" ? "composed" : "steps";
-		playbackController.reset(false);
-		uiController.render();
+			animationMode.value === "composed" ? "composed" : "steps";
+		appController.resetPlayback();
 	}
-	if (target === languageElement) {
+	if (target === language) {
 		void shareController.navigateToSelectedLocale();
 	}
 	if (
@@ -288,14 +246,14 @@ root.addEventListener("change", (event) => {
 		target.dataset.action === "toggle-basis"
 	) {
 		state.showBasis = target.checked;
-		uiController.render(false);
+		appController.render(false);
 	}
 	if (
 		target instanceof HTMLInputElement &&
 		target.dataset.action === "toggle-grid"
 	) {
 		state.showGrid = target.checked;
-		uiController.render(false);
+		appController.render(false);
 	}
 });
 
@@ -308,14 +266,14 @@ function closePopupMenus(): void {
 }
 
 function resetWorkspace(): void {
-	state = createInitialState(() => crypto.randomUUID());
+	state = createInitialState(createId);
 	scene.resetView(2);
 	scene.resetView(3);
-	resetWorkspaceDialogElement.close();
+	resetWorkspaceDialog.close();
 	const url = new URL(window.location.href);
 	url.hash = "";
 	window.history.replaceState(window.history.state, "", url);
-	uiController.render();
+	appController.render();
 }
 
 function resetView(): void {
@@ -335,18 +293,8 @@ function scheduleRender(): void {
 
 function renderFrame(now: number): void {
 	animationFrame = 0;
-	const workspace = getWorkspace(state);
-	if (
-		state.animation.status === "playing" &&
-		getPlaybackElapsed(state.animation, now) >=
-			getAnimationDuration(
-				workspace.lastValidEvaluation,
-				state.animation.mode,
-			)
-	) {
-		playbackController.complete();
-	}
-	uiController.updateAnimationHighlight(now);
+	appController.completePlayback();
+	appController.updateAnimationHighlight(now);
 	const controlsChanged = scene.render(getRenderState(state, now));
 	if (state.animation.status === "playing" || controlsChanged) {
 		scheduleRender();
@@ -358,14 +306,14 @@ async function initialize(): Promise<void> {
 	if (hash.startsWith("#s=")) {
 		try {
 			const restored = await decodeShareSession(hash.slice(3));
-			state = restoreSessionSnapshot(restored);
+			state = restoreSessionSnapshot(restored, createId);
 			scene.restoreCameraSnapshots(restored.cameras);
 		} catch {
-			state = createInitialState(() => crypto.randomUUID());
-			shareErrorDialogElement.showModal();
+			state = createInitialState(createId);
+			shareErrorDialog.showModal();
 		}
 	}
-	uiController.render();
+	appController.render();
 	root.inert = false;
 	root.removeAttribute("aria-busy");
 }
@@ -381,8 +329,8 @@ document.addEventListener("visibilitychange", () => {
 	if (document.visibilityState === "hidden") {
 		if (animationFrame !== 0) cancelAnimationFrame(animationFrame);
 		animationFrame = 0;
-		if (playbackController.pauseForVisibility()) {
-			uiController.updatePlaybackControl();
+		if (appController.pauseForVisibility()) {
+			appController.updatePlaybackControl();
 		}
 		return;
 	}

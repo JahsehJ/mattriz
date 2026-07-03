@@ -1,9 +1,5 @@
 import { type Dimension, type MatrixFor, identityMatrix } from "../domain/math";
-import {
-	type AnyWorkspace,
-	type Workspace,
-	createWorkspace,
-} from "../domain/workspace";
+import { type Workspace, createWorkspace } from "../domain/workspace";
 import type { PlaybackState } from "./playback-state";
 
 export type { AnimationMode, AnimationProgress } from "../domain/animation";
@@ -43,7 +39,7 @@ export function createInitialState(createId?: () => string): AppState {
 	};
 }
 
-export function getWorkspace(state: AppState): AnyWorkspace {
+export function getWorkspace(state: AppState): Workspace<Dimension> {
 	return state.activeDimension === 2
 		? state.workspaces[2]
 		: state.workspaces[3];

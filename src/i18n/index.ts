@@ -92,6 +92,8 @@ const en = {
 	projectLinks: "Project links",
 	equals: "equals",
 	computedVectors: "Computed transformed vectors",
+	staleResults:
+		"Showing the last valid result because the equation contains invalid input.",
 	inputMatricesAndVectors: "Input matrices and vectors",
 	matrices: "Matrices",
 	addMatrix: "Add matrix",
@@ -104,6 +106,8 @@ const en = {
 	aroundAxis: "around {axis}",
 	allEigenbasis: "All eigenbasis vectors",
 	oneEigenvector: "One eigenvector",
+	eigenPresetsRequireValidMatrices:
+		"Fix the invalid matrix input to compute eigenvectors.",
 	eigenvectorUnavailable:
 		"The composed transform does not have a real eigenvector.",
 	eigenbasisUnavailable:
@@ -208,6 +212,7 @@ const zhHant: Messages = {
 	projectLinks: "專案連結",
 	equals: "等於",
 	computedVectors: "變換後的向量",
+	staleResults: "方程式含有無效輸入，目前顯示的是最後一次有效結果。",
 	inputMatricesAndVectors: "輸入矩陣與向量",
 	matrices: "矩陣",
 	addMatrix: "新增矩陣",
@@ -220,6 +225,8 @@ const zhHant: Messages = {
 	aroundAxis: "（繞 {axis} 軸）",
 	allEigenbasis: "所有特徵基底向量",
 	oneEigenvector: "一個特徵向量",
+	eigenPresetsRequireValidMatrices:
+		"請先修正矩陣中的無效輸入，才能計算特徵向量。",
 	eigenvectorUnavailable: "目前的合成變換沒有實數特徵向量。",
 	eigenbasisUnavailable: "目前的合成變換沒有完整的實數特徵基底。",
 	matrix: "{label} 矩陣",

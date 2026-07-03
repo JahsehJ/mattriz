@@ -28,12 +28,7 @@ export function getRenderState(state: AppState, now: number): RenderState {
 			getAnimationFrame(state.animation, now),
 			workspace.lastValidEvaluation.totalTransform,
 		),
-		vectors: workspace.lastValidEvaluation.vectors.map((vector) => ({
-			id: vector.id,
-			label: vector.label,
-			coordinates: vector.coordinates,
-			color: vector.color,
-		})),
+		vectors: workspace.lastValidEvaluation.vectors,
 		showBasis: state.showBasis,
 		showGrid: state.showGrid,
 	};

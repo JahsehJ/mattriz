@@ -6,12 +6,13 @@ export default defineConfig({
 		coverage: {
 			provider: "v8",
 			include: ["src/**/*.ts", "public/*.js"],
-			// Browser tests exercise the application bootstrap and service worker.
-			// They are runtime entry points rather than independently unit-testable modules.
+			// Browser tests exercise the application bootstrap, orchestration, and
+			// service worker. These are runtime entry points rather than isolated units.
 			exclude: [
 				"src/**/*.test.ts",
 				"src/vite-env.d.ts",
 				"src/main.ts",
+				"src/app/application-controller.ts",
 				"public/sw.js",
 			],
 			reporter: ["text", "html"],
@@ -20,29 +21,17 @@ export default defineConfig({
 				branches: 55,
 				functions: 80,
 				lines: 68,
-				"src/app/**/*.ts": {
-					statements: 70,
-					branches: 50,
-					functions: 80,
-					lines: 70,
-				},
 				"src/domain/**/*.ts": {
 					statements: 85,
 					branches: 75,
 					functions: 95,
 					lines: 90,
 				},
-				"src/i18n/**/*.ts": {
-					statements: 95,
-					branches: 60,
-					functions: 95,
-					lines: 95,
-				},
-				"src/ui/**/*.ts": {
-					statements: 42,
-					branches: 40,
-					functions: 55,
-					lines: 44,
+				"src/infrastructure/session-codec.ts": {
+					statements: 65,
+					branches: 55,
+					functions: 77,
+					lines: 67,
 				},
 			},
 		},

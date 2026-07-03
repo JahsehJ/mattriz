@@ -5,23 +5,7 @@ import {
 	evaluateWorkspace,
 	validateWorkspaceDocument,
 } from "./workspace-evaluation";
-export {
-	type EvaluatedMatrix,
-	type EvaluatedVector,
-	type WorkspaceEvaluation,
-	type WorkspaceStructuralError,
-	type WorkspaceValidity,
-	evaluateWorkspace,
-	getTransformedVectors,
-	validateWorkspaceDocument,
-} from "./workspace-evaluation";
-import {
-	MAX_ABSOLUTE_INPUT_VALUE,
-	MAX_MATRIX_DURATION_MS,
-	MAX_WORKSPACE_NODES,
-	MIN_MATRIX_DURATION_MS,
-} from "./policy";
-export { MAX_ABSOLUTE_INPUT_VALUE, MAX_WORKSPACE_NODES } from "./policy";
+import { MAX_ABSOLUTE_INPUT_VALUE, MAX_WORKSPACE_NODES } from "./policy";
 import type {
 	MatrixNode,
 	VectorNode,
@@ -33,9 +17,8 @@ export type {
 	WorkspaceDocument,
 } from "./workspace-types";
 
-export type AnyMatrixNode = MatrixNode<2> | MatrixNode<3>;
-export type AnyVectorNode = VectorNode<2> | VectorNode<3>;
-export type AnyWorkspace = Workspace<2> | Workspace<3>;
+export type AnyMatrixNode = MatrixNode<Dimension>;
+export type AnyWorkspace = Workspace<Dimension>;
 
 export interface Workspace<D extends Dimension> extends WorkspaceDocument<D> {
 	matrices: MatrixNode<D>[];
@@ -141,91 +124,24 @@ export function canAddWorkspaceNodes<D extends Dimension>(
 	);
 }
 
-export function replaceWorkspaceMatrices<D extends Dimension>(
+export function areWorkspaceMatricesValid<D extends Dimension>(
 	workspace: Workspace<D>,
-	matrices: MatrixNode<D>[],
 ): boolean {
-	const validation = validateWorkspaceMatrices(workspace, matrices);
-	if (!validation) return false;
-	workspace.matrices = matrices;
-	refreshWorkspace(workspace);
-	return true;
-}
-
-export function validateWorkspaceMatrices<D extends Dimension>(
-	workspace: Workspace<D>,
-	matrices: MatrixNode<D>[],
-): boolean {
-	return validateMutation({
-		dimension: workspace.dimension,
-		matrices,
-		vectors: workspace.vectors,
-	});
-}
-
-export function replaceWorkspaceVectors<D extends Dimension>(
-	workspace: Workspace<D>,
-	vectors: VectorNode<D>[],
-): boolean {
-	const validation = validateMutation({
-		dimension: workspace.dimension,
-		matrices: workspace.matrices,
-		vectors,
-	});
-	if (!validation) return false;
-	workspace.vectors = vectors;
-	refreshWorkspace(workspace);
-	return true;
-}
-
-export function setMatrixDuration<D extends Dimension>(
-	workspace: Workspace<D>,
-	matrixId: string,
-	durationMs: number,
-): boolean {
-	const matrix = workspace.matrices.find((item) => item.id === matrixId);
-	if (!matrix || !Number.isFinite(durationMs)) return false;
-	matrix.durationMs = Math.max(
-		MIN_MATRIX_DURATION_MS,
-		Math.min(MAX_MATRIX_DURATION_MS, durationMs),
+	return (
+		workspace.validity.structuralErrors.length === 0 &&
+		workspace.matrices.every((matrix) => {
+			const entries = workspace.validity.matrixEntries[matrix.id];
+			return (
+				entries?.length === workspace.dimension ** 2 &&
+				entries.every(Boolean)
+			);
+		})
 	);
-	refreshWorkspace(workspace);
-	return true;
 }
 
-export function setMatrixEntrySource<D extends Dimension>(
+export function recomputeWorkspace<D extends Dimension>(
 	workspace: Workspace<D>,
-	matrixId: string,
-	index: number,
-	source: string,
-): boolean {
-	const matrix = workspace.matrices.find((item) => item.id === matrixId);
-	if (!matrix) return false;
-	if (!Number.isInteger(index) || matrix.entries[index] === undefined)
-		return false;
-	if (typeof source !== "string") return false;
-	matrix.entries[index] = source;
-	refreshWorkspace(workspace);
-	return true;
-}
-
-export function setVectorCoordinateSource<D extends Dimension>(
-	workspace: Workspace<D>,
-	vectorId: string,
-	index: number,
-	source: string,
-): boolean {
-	const vector = workspace.vectors.find((item) => item.id === vectorId);
-	if (!vector) return false;
-	if (!Number.isInteger(index) || vector.coordinates[index] === undefined)
-		return false;
-	if (typeof source !== "string") return false;
-	vector.coordinates[index] = source;
-	refreshWorkspace(workspace);
-	return true;
-}
-
-function refreshWorkspace<D extends Dimension>(workspace: Workspace<D>): void {
+): void {
 	const result = evaluateWorkspace(workspace);
 	workspace.validity = result.validity;
 	if (result.evaluation) workspace.lastValidEvaluation = result.evaluation;
@@ -254,13 +170,6 @@ export function restoreWorkspaceState<D extends Dimension>(
 	workspace.validity = current.validity;
 	workspace.lastValidEvaluation = fallback;
 	return true;
-}
-
-function validateMutation<D extends Dimension>(
-	document: WorkspaceDocument<D>,
-): boolean {
-	const error = validateWorkspaceDocument(document)[0];
-	return !error || error === "invalid-dimension";
 }
 
 function assertNumericShape(values: readonly number[], length: number): void {

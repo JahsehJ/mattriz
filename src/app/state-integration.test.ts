@@ -1,13 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-	createMatrixNode,
-	replaceWorkspaceMatrices,
-} from "../domain/workspace";
 import { createInitialState } from "./state";
-import {
-	canRenderMatrixSequence,
-	canRenderMatrixUpdate,
-} from "../rendering/capability";
+import { canRenderMatrixSequence } from "../rendering/capability";
 import { getRenderState } from "./render-state";
 
 describe("application state integration", () => {
@@ -36,24 +29,5 @@ describe("application state integration", () => {
 		expect(canRenderMatrixSequence(2, [first])).toBe(true);
 		expect(canRenderMatrixSequence(2, [first, first])).toBe(false);
 		expect(canRenderMatrixSequence(2, [zero, first, first])).toBe(false);
-	});
-
-	it("validates a render update without mutating the workspace", () => {
-		const matrices = Array.from({ length: 16 }, (_, index) =>
-			createMatrixNode(2, String.fromCharCode(65 + index), [
-				index === 0 ? 1 : 100,
-				0,
-				0,
-				1,
-			]),
-		);
-		const candidate = matrices[0];
-		const workspace = createInitialState().workspaces[2];
-		replaceWorkspaceMatrices(workspace, matrices);
-
-		expect(
-			canRenderMatrixUpdate(workspace, candidate.id, [100, 0, 0, 1]),
-		).toBe(false);
-		expect(candidate.entries).toEqual(["1", "0", "0", "1"]);
 	});
 });

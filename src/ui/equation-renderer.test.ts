@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { replaceWorkspaceVectors } from "../domain/workspace";
+import { recomputeWorkspace } from "../domain/workspace";
 import { createInitialState } from "../app/state";
 import { EquationRenderer } from "./equation-renderer";
 
@@ -25,7 +25,8 @@ describe("equation renderer", () => {
 
 	it("renders an input-only equation when vectors are absent", () => {
 		const workspace = createInitialState().workspaces[2];
-		replaceWorkspaceVectors(workspace, []);
+		workspace.vectors = [];
+		recomputeWorkspace(workspace);
 		const renderer = new EquationRenderer({
 			root: {} as HTMLElement,
 			t,
@@ -73,5 +74,25 @@ describe("equation renderer", () => {
 			"hidden",
 			true,
 		);
+	});
+
+	it("defers eigenvector preset availability until the menu opens", () => {
+		const workspace = createInitialState().workspaces[2];
+		workspace.matrices[0].entries[0] = "invalid";
+		recomputeWorkspace(workspace);
+		const renderer = new EquationRenderer({
+			root: {} as HTMLElement,
+			t,
+			getWorkspace: () => workspace,
+			maxInputLength: 64,
+		});
+
+		const html = renderer.render();
+
+		expect(html).toContain('data-action="add-eigenvector" disabled');
+		expect(html).toContain('data-action="add-eigenbasis" disabled');
+		expect(html).toContain('role="status" aria-live="polite"');
+		expect(html).toContain("staleResults");
+		expect(html).toContain('aria-describedby="stale-result-status"');
 	});
 });

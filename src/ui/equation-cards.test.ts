@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
-import { setMatrixEntrySource } from "../domain/workspace";
+import { recomputeWorkspace } from "../domain/workspace";
 import { createInitialState } from "../app/state";
 import {
 	renderMatrixCard,
@@ -20,7 +20,8 @@ describe("equation card rendering", () => {
 	it("renders matrix drafts, errors, duration, and accessible labels", () => {
 		const workspace = createInitialState().workspaces[2];
 		const matrix = workspace.matrices[0];
-		setMatrixEntrySource(workspace, matrix.id, 0, "<invalid>");
+		matrix.entries[0] = "<invalid>";
+		recomputeWorkspace(workspace);
 
 		const html = renderMatrixCard(workspace.matrices[0], workspace, t, 64);
 

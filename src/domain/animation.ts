@@ -64,7 +64,8 @@ export function getStepTransform<D extends Dimension>(
 	let remaining = normalizeElapsedMs(elapsedMs);
 	let accumulated = identityMatrix(sequence.dimension);
 
-	for (const matrix of [...sequence.matrices].reverse()) {
+	for (let index = sequence.matrices.length - 1; index >= 0; index -= 1) {
+		const matrix = sequence.matrices[index];
 		const duration = getMatrixDuration(matrix);
 		if (remaining <= duration) {
 			const partial = lerpMatrix(
@@ -105,7 +106,8 @@ export function getAnimationProgress<D extends Dimension>(
 		};
 	}
 
-	for (const matrix of [...sequence.matrices].reverse()) {
+	for (let index = sequence.matrices.length - 1; index >= 0; index -= 1) {
+		const matrix = sequence.matrices[index];
 		const duration = getMatrixDuration(matrix);
 		if (remaining <= duration) {
 			return {
@@ -128,10 +130,15 @@ export function getAnimationDuration<D extends Dimension>(
 	sequence: AnimationSequence<D>,
 	mode: AnimationMode,
 ): number {
-	const durations = sequence.matrices.map(getMatrixDuration);
-	return mode === "composed"
-		? Math.max(0, ...durations)
-		: durations.reduce((sum, duration) => sum + duration, 0);
+	let duration = 0;
+	for (const matrix of sequence.matrices) {
+		const matrixDuration = getMatrixDuration(matrix);
+		duration =
+			mode === "composed"
+				? Math.max(duration, matrixDuration)
+				: duration + matrixDuration;
+	}
+	return duration;
 }
 
 export function getMatrixDuration(matrix: {

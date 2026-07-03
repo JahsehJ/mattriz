@@ -4,7 +4,8 @@ import {
 	identityMatrix,
 	multiplyMatrix,
 } from "../domain/math";
-import { type Workspace, type WorkspaceEvaluation } from "../domain/workspace";
+import type { Workspace } from "../domain/workspace";
+import type { WorkspaceEvaluation } from "../domain/workspace-evaluation";
 
 // WebGL stores transforms as Float32 values. The margin leaves room for
 // subsequent vector calculations.
@@ -42,24 +43,5 @@ export function canRenderEvaluation<D extends Dimension>(
 	return canRenderMatrixSequence(
 		evaluation.dimension,
 		evaluation.matrices.map((matrix) => matrix.values),
-	);
-}
-
-export function canRenderMatrixUpdate<D extends Dimension>(
-	workspace: Workspace<D>,
-	matrixId: string,
-	values: number[],
-): boolean {
-	if (values.length !== workspace.dimension ** 2) return false;
-	const candidate = values as MatrixFor<D>;
-	return canRenderMatrixSequence(
-		workspace.dimension,
-		workspace.matrices.map((matrix) =>
-			matrix.id === matrixId
-				? candidate
-				: (workspace.lastValidEvaluation.matrices.find(
-						(item) => item.id === matrix.id,
-					)?.values ?? candidate),
-		),
 	);
 }
