@@ -15,12 +15,29 @@ export type MatrixValues = Mat2 | Mat3;
 export type Vec2 = [number, number];
 export type Vec3 = [number, number, number];
 export type VectorValues = Vec2 | Vec3;
+export type MatrixFor<D extends Dimension> = D extends 2 ? Mat2 : Mat3;
+export type VectorFor<D extends Dimension> = D extends 2 ? Vec2 : Vec3;
+
+export type EigenbasisResult<D extends Dimension> =
+	| { kind: "basis"; vectors: VectorFor<D>[] }
+	| {
+			kind:
+				| "complex-eigenvalues"
+				| "not-diagonalizable"
+				| "numerical-failure";
+	  };
+
+export type EigenvectorResult<D extends Dimension> =
+	| { kind: "vector"; vector: VectorFor<D> }
+	| { kind: "complex-eigenvalues" | "numerical-failure" };
 
 export const identity2 = (): Mat2 => [1, 0, 0, 1];
 export const identity3 = (): Mat3 => [1, 0, 0, 0, 1, 0, 0, 0, 1];
 
-export function identityMatrix(dimension: Dimension): MatrixValues {
-	return dimension === 2 ? identity2() : identity3();
+export function identityMatrix<D extends Dimension>(
+	dimension: D,
+): MatrixFor<D> {
+	return (dimension === 2 ? identity2() : identity3()) as MatrixFor<D>;
 }
 
 export function multiply2(a: Mat2, b: Mat2): Mat2 {
@@ -46,49 +63,54 @@ export function multiply3(a: Mat3, b: Mat3): Mat3 {
 	];
 }
 
-export function multiplyMatrix(
-	dimension: Dimension,
-	a: MatrixValues,
-	b: MatrixValues,
-): MatrixValues {
-	return dimension === 2
-		? multiply2(a as Mat2, b as Mat2)
-		: multiply3(a as Mat3, b as Mat3);
+export function multiplyMatrix<D extends Dimension>(
+	dimension: D,
+	a: MatrixFor<D>,
+	b: MatrixFor<D>,
+): MatrixFor<D> {
+	return (
+		dimension === 2
+			? multiply2(a as Mat2, b as Mat2)
+			: multiply3(a as Mat3, b as Mat3)
+	) as MatrixFor<D>;
 }
 
-export function composeMathNotation(
-	dimension: Dimension,
-	matrices: MatrixValues[],
-): MatrixValues {
+export function composeMathNotation<D extends Dimension>(
+	dimension: D,
+	matrices: MatrixFor<D>[],
+): MatrixFor<D> {
 	return matrices.reduce(
 		(total, matrix) => multiplyMatrix(dimension, total, matrix),
 		identityMatrix(dimension),
 	);
 }
 
-export function lerpMatrix(
-	dimension: Dimension,
-	from: MatrixValues,
-	to: MatrixValues,
+export function lerpMatrix<D extends Dimension>(
+	dimension: D,
+	from: MatrixFor<D>,
+	to: MatrixFor<D>,
 	amount: number,
-): MatrixValues {
+): MatrixFor<D> {
 	const t = clamp(amount, 0, 1);
 	const length = dimension === 2 ? 4 : 9;
 	return Array.from(
 		{ length },
 		(_, index) => from[index] + (to[index] - from[index]) * t,
-	) as MatrixValues;
+	) as MatrixFor<D>;
 }
 
-export function applyMatrixToVector(
-	dimension: Dimension,
-	matrix: MatrixValues,
-	vector: VectorValues,
-): Vec3 {
+export function applyMatrixToVector<D extends Dimension>(
+	dimension: D,
+	matrix: MatrixFor<D>,
+	vector: VectorFor<D>,
+): VectorFor<D> {
 	if (dimension === 2) {
 		const m = matrix as Mat2;
 		const v = vector as Vec2;
-		return [m[0] * v[0] + m[1] * v[1], m[2] * v[0] + m[3] * v[1], 0];
+		return [
+			m[0] * v[0] + m[1] * v[1],
+			m[2] * v[0] + m[3] * v[1],
+		] as VectorFor<D>;
 	}
 
 	const m = matrix as Mat3;
@@ -97,7 +119,7 @@ export function applyMatrixToVector(
 		m[0] * v[0] + m[1] * v[1] + m[2] * v[2],
 		m[3] * v[0] + m[4] * v[1] + m[5] * v[2],
 		m[6] * v[0] + m[7] * v[1] + m[8] * v[2],
-	];
+	] as VectorFor<D>;
 }
 
 export function parseFiniteNumber(value: string): number | null {
@@ -117,18 +139,24 @@ export function clamp(value: number, min: number, max: number): number {
 	return Math.min(max, Math.max(min, value));
 }
 
-export function getRealEigenbasis(
-	dimension: Dimension,
-	matrix: MatrixValues,
-): VectorValues[] | null {
+export function analyzeRealEigenbasis<D extends Dimension>(
+	dimension: D,
+	matrix: MatrixFor<D>,
+): EigenbasisResult<D> {
 	const rows = toRows(dimension, matrix);
 	const eigenvalues =
 		dimension === 2 ? eigenvalues2(rows) : eigenvalues3(rows);
-	if (!eigenvalues || eigenvalues.length !== dimension) return null;
+	if (!eigenvalues || eigenvalues.length !== dimension)
+		return { kind: "complex-eigenvalues" };
 
 	const scale = Math.max(1, ...matrix.map(Math.abs));
 	const tolerance = matrixTolerance(scale, dimension);
-	const groupingTolerance = 8 * Math.sqrt(Number.EPSILON) * scale * dimension;
+	// The analytic 3D solver needs a wider tolerance around repeated cubic
+	// roots. The 2D solver does not, and widening it merges valid nearby roots.
+	const groupingTolerance =
+		dimension === 2
+			? tolerance
+			: 8 * Math.sqrt(Number.EPSILON) * scale * dimension;
 	const groups: { value: number; count: number }[] = [];
 	for (const value of eigenvalues.sort((a, b) => a - b)) {
 		const group = groups[groups.length - 1];
@@ -145,31 +173,32 @@ export function getRealEigenbasis(
 			shiftByEigenvalue(rows, group.value),
 			tolerance,
 		);
-		if (eigenspace.length < group.count) return null;
+		if (eigenspace.length < group.count)
+			return { kind: "not-diagonalizable" };
 		vectors.push(...eigenspace.slice(0, group.count));
 	}
 	if (
 		vectors.length !== dimension ||
 		matrixRank(vectors, matrixTolerance(1, dimension)) !== dimension
 	)
-		return null;
+		return { kind: "not-diagonalizable" };
 
 	const normalized = vectors.map(normalizeDirection);
 	return normalized.every((vector) =>
 		isEigenvector(rows, vector, residualTolerance(scale, dimension)),
 	)
-		? (normalized as VectorValues[])
-		: null;
+		? { kind: "basis", vectors: normalized as VectorFor<D>[] }
+		: { kind: "numerical-failure" };
 }
 
-export function getRepresentativeRealEigenvector(
-	dimension: Dimension,
-	matrix: MatrixValues,
-): VectorValues | null {
+export function analyzeRepresentativeRealEigenvector<D extends Dimension>(
+	dimension: D,
+	matrix: MatrixFor<D>,
+): EigenvectorResult<D> {
 	const rows = toRows(dimension, matrix);
 	const eigenvalues =
 		dimension === 2 ? eigenvalues2(rows) : eigenvalues3(rows);
-	if (!eigenvalues) return null;
+	if (!eigenvalues) return { kind: "complex-eigenvalues" };
 	const scale = Math.max(1, ...matrix.map(Math.abs));
 	const tolerance = matrixTolerance(scale, dimension);
 	for (const eigenvalue of eigenvalues.sort((a, b) => a - b)) {
@@ -182,22 +211,34 @@ export function getRepresentativeRealEigenvector(
 		if (
 			isEigenvector(rows, normalized, residualTolerance(scale, dimension))
 		)
-			return normalized as VectorValues;
+			return { kind: "vector", vector: normalized as VectorFor<D> };
 	}
-	return null;
+	return { kind: "numerical-failure" };
 }
 
 function eigenvalues2(rows: number[][]): number[] | null {
-	const trace = rows[0][0] + rows[1][1];
-	const determinant = rows[0][0] * rows[1][1] - rows[0][1] * rows[1][0];
-	const discriminant = trace * trace - 4 * determinant;
+	const a = rows[0][0];
+	const b = rows[0][1];
+	const c = rows[1][0];
+	const d = rows[1][1];
+	const difference = a - d;
+	const scale = Math.max(Math.abs(difference), Math.abs(b), Math.abs(c));
+	if (scale === 0) return [a, a];
+	const scaledDifference = difference / scale;
+	const scaledProduct = (b / scale) * (c / scale);
+	const discriminant =
+		scaledDifference * scaledDifference + 4 * scaledProduct;
 	const tolerance =
 		64 *
 		Number.EPSILON *
-		Math.max(Math.abs(trace * trace), Math.abs(4 * determinant));
+		Math.max(
+			Math.abs(scaledDifference * scaledDifference),
+			Math.abs(4 * scaledProduct),
+		);
 	if (discriminant < -tolerance) return null;
-	const root = Math.sqrt(Math.max(0, discriminant));
-	return [(trace - root) / 2, (trace + root) / 2];
+	const halfRoot = (scale * Math.sqrt(Math.max(0, discriminant))) / 2;
+	const midpoint = a / 2 + d / 2;
+	return [midpoint - halfRoot, midpoint + halfRoot];
 }
 
 function eigenvalues3(rows: number[][]): number[] | null {
@@ -341,7 +382,10 @@ function matrixRank(rows: number[][], tolerance: number): number {
 	return rows[0].length - nullspace(rows, tolerance).length;
 }
 
-function toRows(dimension: Dimension, matrix: MatrixValues): number[][] {
+function toRows<D extends Dimension>(
+	dimension: D,
+	matrix: MatrixFor<D>,
+): number[][] {
 	return Array.from({ length: dimension }, (_, row) =>
 		Array.from(
 			{ length: dimension },

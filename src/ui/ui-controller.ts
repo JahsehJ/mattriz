@@ -1,10 +1,10 @@
 import type { MessageKey, Translate } from "../i18n";
 import {
 	type AppState,
-	getAnimationProgress,
 	getTransformedVectors,
 	getWorkspace,
 } from "../domain/state";
+import { getAnimationProgress } from "../domain/animation";
 import { applyEntryColumnTemplate } from "./equation-layout";
 import { formatDisplayNumber } from "./number-formatting";
 

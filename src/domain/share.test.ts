@@ -1,19 +1,49 @@
 import { describe, expect, it } from "vitest";
 import {
-	MAX_RENDER_TRANSFORM_VALUE,
 	MAX_WORKSPACE_NODES,
 	createNumericCells,
 	createInitialState,
 	createMatrixNode,
 	getNumericCellError,
+	updateNumericCellDraft,
 } from "./state";
+import type { AppState } from "./state";
+import { MAX_RENDER_TRANSFORM_VALUE } from "../rendering/capability";
 import {
-	CameraSnapshots,
 	MAX_SHARE_FRAGMENT_LENGTH,
-	ShareSession,
-	decodeShareSession,
-	encodeShareSession,
-} from "./share";
+	decodeShareSession as decodeSnapshot,
+	encodeShareSession as encodeSnapshot,
+} from "../infrastructure/session-codec";
+import {
+	type CameraSnapshots,
+	captureSessionSnapshot,
+	restoreSessionSnapshot,
+} from "../app/session-snapshot";
+
+interface ShareSession {
+	state: AppState;
+	elapsedMs: number;
+	cameras: CameraSnapshots;
+}
+
+async function encodeShareSession(session: ShareSession): Promise<string> {
+	return encodeSnapshot(
+		captureSessionSnapshot(
+			session.state,
+			session.elapsedMs,
+			session.cameras,
+		),
+	);
+}
+
+async function decodeShareSession(payload: string): Promise<ShareSession> {
+	const snapshot = await decodeSnapshot(payload);
+	return {
+		state: restoreSessionSnapshot(snapshot),
+		elapsedMs: snapshot.elapsedMs,
+		cameras: snapshot.cameras,
+	};
+}
 
 const cameras: CameraSnapshots = {
 	2: { position: [0, 0, 10], target: [1, 2, 0], zoom: 1.5 },
@@ -28,7 +58,7 @@ function session(): ShareSession {
 	state.animation.mode = "composed";
 	state.animation.status = "playing";
 	state.workspaces[2].matrices[0].entries = createNumericCells(
-		[Math.SQRT1_2, -0.5, Math.SQRT2, 1],
+		[Math.SQRT1_2, -0.5, Math.SQRT2, 1] as [number, number, number, number],
 		["cos(pi/4)", "-1/2", "sqrt(2)", "1"],
 	);
 	state.workspaces[2].matrices[0].durationMs = 1_300;
@@ -116,8 +146,12 @@ describe("share session codec", () => {
 
 	it("preserves a rejected overflow draft across a share round trip", async () => {
 		const source = session();
-		const entry = source.state.workspaces[2].matrices[0].entries[0];
-		entry.source = "100";
+		updateNumericCellDraft(
+			source.state.workspaces[2].matrices[0].entries,
+			0,
+			"100",
+			() => false,
+		);
 
 		const restored = await decodeShareSession(
 			await encodeShareSession(source),
@@ -126,12 +160,13 @@ describe("share session codec", () => {
 		expect(restored.state.workspaces[2].matrices[0].entries[0]).toEqual({
 			source: "100",
 			value: Math.SQRT1_2,
+			error: "constraint-rejected",
 		});
 		expect(
 			getNumericCellError(
 				restored.state.workspaces[2].matrices[0].entries[0],
 			),
-		).toBe("transform-overflow");
+		).toBe("constraint-rejected");
 	});
 
 	it("round-trips applied transforms across the full rendering range", async () => {
@@ -147,6 +182,23 @@ describe("share session codec", () => {
 		]);
 	});
 
+	it("isolates applied transforms from captured and restored snapshots", () => {
+		const source = session();
+		source.state.workspaces[2].appliedTransform = [2, 0, 0, 2];
+		const snapshot = captureSessionSnapshot(
+			source.state,
+			source.elapsedMs,
+			source.cameras,
+		);
+
+		source.state.workspaces[2].appliedTransform[0] = 3;
+		expect(snapshot.workspaces[2].appliedTransform[0]).toBe(2);
+
+		const restored = restoreSessionSnapshot(snapshot);
+		snapshot.workspaces[2].appliedTransform[0] = 4;
+		expect(restored.workspaces[2].appliedTransform[0]).toBe(2);
+	});
+
 	it("rejects applied transforms outside the rendering bound", async () => {
 		const source = session();
 		source.state.workspaces[2].appliedTransform = [
@@ -158,6 +210,25 @@ describe("share session codec", () => {
 
 		await expect(encodeShareSession(source)).rejects.toThrow(
 			"Invalid numeric value",
+		);
+	});
+
+	it("rejects snapshots whose matrix sequence exceeds rendering bounds", () => {
+		const source = session();
+		const snapshot = captureSessionSnapshot(
+			source.state,
+			source.elapsedMs,
+			source.cameras,
+		);
+		snapshot.workspaces[2].matrices = Array.from({ length: 16 }, () => ({
+			label: "A",
+			sources: ["100", "0", "0", "100"],
+			values: [100, 0, 0, 100],
+			durationMs: 500,
+		}));
+
+		expect(() => restoreSessionSnapshot(snapshot)).toThrow(
+			"Invalid workspace snapshot",
 		);
 	});
 

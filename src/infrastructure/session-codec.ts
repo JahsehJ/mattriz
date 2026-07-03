@@ -1,41 +1,31 @@
-import type { Dimension, MatrixValues, VectorValues } from "./math";
+import type { Dimension, MatrixFor, VectorFor } from "../domain/math";
+import { MAX_WORKSPACE_NODES } from "../domain/state";
+import type { AnimationMode } from "../domain/animation";
 import {
+	MAX_ABSOLUTE_INPUT_VALUE,
+	MAX_MATRIX_DURATION_MS,
 	MAX_RENDER_TRANSFORM_VALUE,
-	MAX_WORKSPACE_NODES,
-	createNumericCells,
-	getMatrixValues,
-	getVectorValues,
-	hasSafeComposedTransform,
-	type AnimationMode,
-	type AppState,
-	type Workspace,
-} from "./state";
+	MAX_SESSION_ELAPSED_MS,
+	MIN_MATRIX_DURATION_MS,
+} from "../domain/policy";
+import type {
+	CameraSnapshot,
+	SessionSnapshot,
+	WorkspaceSnapshot,
+} from "../app/session-snapshot";
+export type {
+	CameraSnapshot,
+	CameraSnapshots,
+	SessionSnapshot,
+} from "../app/session-snapshot";
 
 export const MAX_SHARE_FRAGMENT_LENGTH = 32_768;
 const MAX_DECODED_BYTES = 262_144;
-const MAX_ABSOLUTE_VALUE = 100;
 const MAX_CAMERA_VALUE = 1_000;
 const MATRIX_LABEL = /^[A-Z]{1,2}$/;
 const VECTOR_LABEL = /^v[1-9][0-9]{0,2}$/;
 const COLOR = /^#[0-9a-fA-F]{6}$/;
 const EXPRESSION = /^[0-9A-Za-z+\-*/^().\s]*$/;
-
-export interface CameraSnapshot {
-	position: [number, number, number];
-	target: [number, number, number];
-	zoom: number;
-}
-
-export interface CameraSnapshots {
-	2: CameraSnapshot;
-	3: CameraSnapshot;
-}
-
-export interface ShareSession {
-	state: AppState;
-	elapsedMs: number;
-	cameras: CameraSnapshots;
-}
 
 type JsonValue =
 	| null
@@ -49,7 +39,7 @@ type SharePayloadVersion = 1 | 2;
 const CURRENT_SHARE_PAYLOAD_VERSION: SharePayloadVersion = 2;
 
 export async function encodeShareSession(
-	session: ShareSession,
+	session: SessionSnapshot,
 ): Promise<string> {
 	const serialized = encodeCurrentVersion(session);
 	decodeVersionedTuple(serialized);
@@ -68,7 +58,7 @@ export async function encodeShareSession(
 
 export async function decodeShareSession(
 	fragment: string,
-): Promise<ShareSession> {
+): Promise<SessionSnapshot> {
 	if (fragment.length > MAX_SHARE_FRAGMENT_LENGTH)
 		throw new Error("Share payload is too large");
 	if (!fragment.startsWith("1j") && !fragment.startsWith("1g"))
@@ -92,25 +82,24 @@ export async function decodeShareSession(
 	return decodeVersionedTuple(value);
 }
 
-function encodeCurrentVersion(session: ShareSession): JsonValue {
+function encodeCurrentVersion(session: SessionSnapshot): JsonValue {
 	return encodeVersion2(session);
 }
 
-function encodeVersion2(session: ShareSession): JsonValue {
-	const state = session.state;
+function encodeVersion2(session: SessionSnapshot): JsonValue {
 	const workspace = (dimension: Dimension): JsonValue => {
-		const item = state.workspaces[dimension];
+		const item = session.workspaces[dimension];
 		return [
 			item.matrices.map((matrix) => [
 				matrix.label,
-				matrix.entries.map((entry) => entry.source),
-				getMatrixValues(matrix),
+				matrix.sources,
+				matrix.values,
 				matrix.durationMs,
 			]),
 			item.vectors.map((vector) => [
 				vector.label,
-				vector.coordinates.map((coordinate) => coordinate.source),
-				getVectorValues(vector),
+				vector.sources,
+				vector.values,
 				vector.color,
 			]),
 			item.appliedTransform,
@@ -122,11 +111,11 @@ function encodeVersion2(session: ShareSession): JsonValue {
 	};
 	return [
 		CURRENT_SHARE_PAYLOAD_VERSION,
-		state.activeDimension,
-		state.showBasis ? 1 : 0,
-		state.showGrid ? 1 : 0,
-		state.animation.mode === "composed" ? 1 : 0,
-		state.animation.status === "idle" ? 0 : 1,
+		session.activeDimension,
+		session.showBasis ? 1 : 0,
+		session.showGrid ? 1 : 0,
+		session.animationMode === "composed" ? 1 : 0,
+		session.animationActive ? 1 : 0,
 		session.elapsedMs,
 		workspace(2),
 		workspace(3),
@@ -135,7 +124,7 @@ function encodeVersion2(session: ShareSession): JsonValue {
 	];
 }
 
-function decodeVersionedTuple(value: unknown): ShareSession {
+function decodeVersionedTuple(value: unknown): SessionSnapshot {
 	if (!Array.isArray(value)) throw new Error("Invalid share payload shape");
 	const version: unknown = value[0];
 	switch (version) {
@@ -148,7 +137,7 @@ function decodeVersionedTuple(value: unknown): ShareSession {
 	}
 }
 
-function decodeVersion1(value: unknown): ShareSession {
+function decodeVersion1(value: unknown): SessionSnapshot {
 	const root = tuple(value, 10);
 	const activeDimension = dimension(root[1]);
 	const showBasis = flag(root[2]);
@@ -161,7 +150,7 @@ function decodeVersion1(value: unknown): ShareSession {
 		showGrid: true,
 		mode,
 		paused,
-		elapsedMs: finiteNumber(root[5], 0, 384_000),
+		elapsedMs: finiteNumber(root[5], 0, MAX_SESSION_ELAPSED_MS),
 		workspace2: parseWorkspace(root[6], 2),
 		workspace3: parseWorkspace(root[7], 3),
 		camera2: parseCamera(root[8]),
@@ -169,7 +158,7 @@ function decodeVersion1(value: unknown): ShareSession {
 	});
 }
 
-function decodeVersion2(value: unknown): ShareSession {
+function decodeVersion2(value: unknown): SessionSnapshot {
 	const root = tuple(value, 11);
 	const activeDimension = dimension(root[1]);
 	const showBasis = flag(root[2]);
@@ -183,7 +172,7 @@ function decodeVersion2(value: unknown): ShareSession {
 		showGrid,
 		mode,
 		paused,
-		elapsedMs: finiteNumber(root[6], 0, 384_000),
+		elapsedMs: finiteNumber(root[6], 0, MAX_SESSION_ELAPSED_MS),
 		workspace2: parseWorkspace(root[7], 2),
 		workspace3: parseWorkspace(root[8], 3),
 		camera2: parseCamera(root[9]),
@@ -209,24 +198,18 @@ function createDecodedSession({
 	mode: AnimationMode;
 	paused: boolean;
 	elapsedMs: number;
-	workspace2: Workspace;
-	workspace3: Workspace;
+	workspace2: WorkspaceSnapshot<2>;
+	workspace3: WorkspaceSnapshot<3>;
 	camera2: CameraSnapshot;
 	camera3: CameraSnapshot;
-}): ShareSession {
+}): SessionSnapshot {
 	return {
-		state: {
-			activeDimension,
-			showBasis,
-			showGrid,
-			workspaces: { 2: workspace2, 3: workspace3 },
-			animation: {
-				mode,
-				status: paused ? "paused" : "idle",
-				startedAt: 0,
-				pausedAt: 0,
-			},
-		},
+		activeDimension,
+		showBasis,
+		showGrid,
+		workspaces: { 2: workspace2, 3: workspace3 },
+		animationMode: mode,
+		animationActive: paused,
 		elapsedMs,
 		cameras: {
 			2: camera2,
@@ -235,7 +218,10 @@ function createDecodedSession({
 	};
 }
 
-function parseWorkspace(value: unknown, dimensionValue: Dimension) {
+function parseWorkspace<D extends Dimension>(
+	value: unknown,
+	dimensionValue: D,
+): WorkspaceSnapshot<D> {
 	const item = tuple(value, 3);
 	const matrices = boundedArray(item[0]).map((entry) => {
 		const matrix = tuple(entry, 4);
@@ -244,13 +230,17 @@ function parseWorkspace(value: unknown, dimensionValue: Dimension) {
 		const values = numbers(
 			matrix[2],
 			dimensionValue ** 2,
-			MAX_ABSOLUTE_VALUE,
-		) as MatrixValues;
-		const durationMs = finiteNumber(matrix[3], 100, 3_000);
+			MAX_ABSOLUTE_INPUT_VALUE,
+		) as MatrixFor<D>;
+		const durationMs = finiteNumber(
+			matrix[3],
+			MIN_MATRIX_DURATION_MS,
+			MAX_MATRIX_DURATION_MS,
+		);
 		return {
-			id: crypto.randomUUID(),
 			label,
-			entries: createNumericCells(values, draftValues),
+			sources: draftValues,
+			values,
 			durationMs,
 		};
 	});
@@ -261,13 +251,13 @@ function parseWorkspace(value: unknown, dimensionValue: Dimension) {
 		const components = numbers(
 			vector[2],
 			dimensionValue,
-			MAX_ABSOLUTE_VALUE,
-		) as VectorValues;
+			MAX_ABSOLUTE_INPUT_VALUE,
+		) as VectorFor<D>;
 		const color = matchedString(vector[3], COLOR, 7).toLowerCase();
 		return {
-			id: crypto.randomUUID(),
 			label,
-			coordinates: createNumericCells(components, draftComponents),
+			sources: draftComponents,
+			values: components,
 			color,
 		};
 	});
@@ -275,15 +265,12 @@ function parseWorkspace(value: unknown, dimensionValue: Dimension) {
 		item[2],
 		dimensionValue ** 2,
 		MAX_RENDER_TRANSFORM_VALUE,
-	) as MatrixValues;
-	const workspace: Workspace = {
-		dimension: dimensionValue,
+	) as MatrixFor<D>;
+	const workspace: WorkspaceSnapshot<D> = {
 		matrices,
 		vectors,
 		appliedTransform,
 	};
-	if (!hasSafeComposedTransform(workspace))
-		throw new Error("Invalid numeric value");
 	return workspace;
 }
 

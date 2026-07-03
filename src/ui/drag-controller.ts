@@ -234,7 +234,7 @@ export class DragController {
 	}
 }
 
-function getSortableDropTarget(
+export function getSortableDropTarget(
 	event: DragEvent,
 	items: HTMLElement[],
 	datasetKey: "matrixId" | "vectorColumnId",

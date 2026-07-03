@@ -21,6 +21,17 @@ test("edits a matrix and updates transformed vectors", async ({ page }) => {
 	await expect(matrixEntry).toHaveAttribute("aria-invalid", "");
 	await expect(firstResult).toHaveText("2");
 
+	const siblingEntry = page.getByRole("textbox", {
+		name: "A row 2 column 1",
+	});
+	await siblingEntry.fill("3");
+	await expect(siblingEntry).not.toHaveAttribute("aria-invalid", "");
+	await expect(
+		page.locator(
+			'[data-result-vector-index="0"][data-result-component-index="1"]',
+		),
+	).toHaveText("1");
+
 	await page.getByRole("button", { name: "Add matrix" }).click();
 	await expect(matrixEntry).toHaveAttribute("aria-invalid", "");
 });
@@ -145,4 +156,39 @@ test("reloads the localized app shell while offline", async ({
 	await page.reload();
 
 	await expect(page.getByRole("button", { name: "分享" })).toBeVisible();
+});
+
+test("keeps mobile controls inside the viewport", async ({ page }) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.reload();
+
+	const tools = page.locator(".view-tools");
+	await expect(tools).toBeVisible();
+	const bounds = await tools.boundingBox();
+	expect(bounds).not.toBeNull();
+	expect(bounds!.x).toBeGreaterThanOrEqual(0);
+	expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390);
+
+	await page.getByRole("button", { name: "About" }).click();
+	const dialog = page.locator(".about-dialog[open]");
+	await expect(dialog).toBeVisible();
+	expect(
+		await dialog.evaluate(
+			(element) => element.scrollWidth <= element.clientWidth,
+		),
+	).toBe(true);
+});
+
+test("fits localized controls at a narrow viewport", async ({ page }) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.goto("/zh-hant/");
+
+	await expect(page.getByRole("button", { name: "分享" })).toBeVisible();
+	const controls = page.locator(".view-tools > button, .view-tools > select");
+	for (const control of await controls.all()) {
+		const bounds = await control.boundingBox();
+		expect(bounds).not.toBeNull();
+		expect(bounds!.x).toBeGreaterThanOrEqual(0);
+		expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390);
+	}
 });

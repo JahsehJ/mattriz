@@ -1,8 +1,8 @@
 import {
 	getNumericCellError,
 	getTransformedVectors,
-	type MatrixNode,
-	type Workspace,
+	type AnyMatrixNode,
+	type AnyWorkspace,
 } from "../domain/state";
 import type { Translate } from "../i18n";
 import {
@@ -14,8 +14,8 @@ import { escapeHtml, renderCloseIcon, renderVectorSymbol } from "./rendering";
 import { formatDisplayNumber } from "./number-formatting";
 
 export function renderMatrixCard(
-	matrix: MatrixNode,
-	workspace: Workspace,
+	matrix: AnyMatrixNode,
+	workspace: AnyWorkspace,
 	t: Translate,
 	maxInputLength: number,
 ): string {
@@ -59,7 +59,7 @@ export function renderMatrixCard(
 }
 
 export function renderVectorMatrix(
-	workspace: Workspace,
+	workspace: AnyWorkspace,
 	t: Translate,
 	maxInputLength: number,
 	renderAddControl: () => string,
@@ -101,7 +101,10 @@ export function renderVectorMatrix(
     </article>`;
 }
 
-export function renderResultMatrix(workspace: Workspace, t: Translate): string {
+export function renderResultMatrix(
+	workspace: AnyWorkspace,
+	t: Translate,
+): string {
 	const vectors = getTransformedVectors(workspace).map((components) =>
 		components.map(formatDisplayNumber),
 	);

@@ -1,21 +1,31 @@
-import { evaluateBoundedExpression } from "../domain/expression";
 import {
-	getRealEigenbasis,
-	getRepresentativeRealEigenvector,
+	analyzeRealEigenbasis,
+	analyzeRepresentativeRealEigenvector,
 } from "../domain/math";
 import { getMatrixPresets } from "../domain/presets";
 import {
-	MAX_ABSOLUTE_INPUT_VALUE,
 	type AppState,
-	type NumericCell,
+	type AnyVectorNode,
 	canAddWorkspaceNodes,
 	createMatrixNode,
 	createVectorNode,
-	getNumericCellError,
 	getTotalTransform,
 	getWorkspace,
-	hasSafeComposedTransform,
+	replaceWorkspaceMatrices,
+	replaceWorkspaceVectors,
+	setMatrixDuration,
+	validateMatrixValuesUpdate,
 } from "../domain/state";
+import {
+	type NumericCell,
+	type NumericCommitResult,
+	getNumericCellError,
+	updateNumericCellDraft,
+} from "../domain/numeric-editor";
+import {
+	canRenderMatrixUpdate,
+	canRenderWorkspace,
+} from "../rendering/capability";
 import type { Translate } from "../i18n";
 import {
 	type MoveDirection,
@@ -52,30 +62,33 @@ export class WorkspaceController {
 
 	addMatrix(): void {
 		const workspace = this.workspace;
-		if (!canAddWorkspaceNodes(workspace, "matrices")) return;
-		workspace.matrices.unshift(
-			createMatrixNode(
-				workspace.dimension,
-				nextMatrixLabel(
-					workspace.matrices.map((matrix) => matrix.label),
-				),
-			),
+		const matrix = createMatrixNode(
+			workspace.dimension,
+			nextMatrixLabel(workspace.matrices.map((matrix) => matrix.label)),
 		);
+		if (
+			!replaceWorkspaceMatrices(
+				workspace,
+				[matrix, ...workspace.matrices],
+				canRenderWorkspace,
+			).accepted
+		)
+			return;
 		this.options.resetAnimation();
 	}
 
 	addVector(): void {
 		const workspace = this.workspace;
-		if (!canAddWorkspaceNodes(workspace, "vectors")) return;
-		workspace.vectors.push(
-			createVectorNode(
-				workspace.dimension,
-				nextVectorLabel(
-					workspace.vectors.map((vector) => vector.label),
-				),
-				this.nextVectorColor,
-			),
+		const vector = createVectorNode(
+			workspace.dimension,
+			nextVectorLabel(workspace.vectors.map((vector) => vector.label)),
+			this.nextVectorColor,
 		);
+		if (
+			!replaceWorkspaceVectors(workspace, [...workspace.vectors, vector])
+				.accepted
+		)
+			return;
 		this.options.resetAnimation();
 	}
 
@@ -84,19 +97,20 @@ export class WorkspaceController {
 		const preset = getMatrixPresets(workspace.dimension).find(
 			(item) => item.id === presetId,
 		);
-		if (!preset || !canAddWorkspaceNodes(workspace, "matrices")) return;
-		workspace.matrices.unshift(
-			createMatrixNode(
-				workspace.dimension,
-				nextMatrixLabel(
-					workspace.matrices.map((matrix) => matrix.label),
-				),
-				preset.values,
-				preset.draftValues,
-			),
+		if (!preset) return;
+		const matrix = createMatrixNode(
+			workspace.dimension,
+			nextMatrixLabel(workspace.matrices.map((matrix) => matrix.label)),
+			preset.values,
+			preset.draftValues,
 		);
-		if (!hasSafeComposedTransform(workspace)) {
-			workspace.matrices.shift();
+		if (
+			!replaceWorkspaceMatrices(
+				workspace,
+				[matrix, ...workspace.matrices],
+				canRenderWorkspace,
+			).accepted
+		) {
 			return;
 		}
 		this.options.resetAnimation();
@@ -104,14 +118,16 @@ export class WorkspaceController {
 
 	addEigenbasis(): void {
 		const workspace = this.workspace;
-		const basis = getRealEigenbasis(
+		const result = analyzeRealEigenbasis(
 			workspace.dimension,
 			getTotalTransform(workspace),
 		);
+		const basis = result.kind === "basis" ? result.vectors : null;
 		if (!basis || !canAddWorkspaceNodes(workspace, "vectors", basis.length))
 			return;
+		const vectors = [...workspace.vectors];
 		for (const components of basis) {
-			workspace.vectors.push(
+			vectors.push(
 				createVectorNode(
 					workspace.dimension,
 					nextVectorLabel(
@@ -120,66 +136,81 @@ export class WorkspaceController {
 					this.nextVectorColor,
 					components,
 					components.map(formatInputNumber),
-				),
+				) as AnyVectorNode,
 			);
 		}
+		if (!replaceWorkspaceVectors(workspace, vectors).accepted) return;
 		this.options.resetAnimation();
 	}
 
 	addRepresentativeEigenvector(): void {
 		const workspace = this.workspace;
 		if (!canAddWorkspaceNodes(workspace, "vectors")) return;
-		const vector = getRepresentativeRealEigenvector(
+		const result = analyzeRepresentativeRealEigenvector(
 			workspace.dimension,
 			getTotalTransform(workspace),
 		);
-		if (!vector) return;
-		workspace.vectors.push(
-			createVectorNode(
-				workspace.dimension,
-				nextVectorLabel(workspace.vectors.map((item) => item.label)),
-				this.nextVectorColor,
-				vector,
-				vector.map(formatInputNumber),
-			),
+		if (result.kind !== "vector") return;
+		const vector = result.vector;
+		const vectorNode = createVectorNode(
+			workspace.dimension,
+			nextVectorLabel(workspace.vectors.map((item) => item.label)),
+			this.nextVectorColor,
+			vector,
+			vector.map(formatInputNumber),
 		);
+		if (
+			!replaceWorkspaceVectors(workspace, [
+				...workspace.vectors,
+				vectorNode,
+			]).accepted
+		)
+			return;
 		this.options.resetAnimation();
 	}
 
 	deleteMatrix(id: string): void {
 		const workspace = this.workspace;
-		const previous = workspace.matrices;
-		workspace.matrices = workspace.matrices.filter(
+		const matrices = workspace.matrices.filter(
 			(matrix) => matrix.id !== id,
 		);
-		if (!hasSafeComposedTransform(workspace)) {
-			workspace.matrices = previous;
+		if (
+			!replaceWorkspaceMatrices(workspace, matrices, canRenderWorkspace)
+				.accepted
+		)
 			return;
-		}
 		this.options.resetAnimation();
 	}
 
 	deleteVector(id: string): void {
-		this.workspace.vectors = this.workspace.vectors.filter(
-			(vector) => vector.id !== id,
-		);
+		const workspace = this.workspace;
+		if (
+			!replaceWorkspaceVectors(
+				workspace,
+				workspace.vectors.filter((vector) => vector.id !== id),
+			).accepted
+		)
+			return;
 		this.options.resetAnimation();
 	}
 
 	moveMatrix(id: string, targetId: string, side: "before" | "after"): void {
 		const workspace = this.workspace;
-		const previous = [...workspace.matrices];
-		if (!moveItemTo(workspace.matrices, id, targetId, side).changed) return;
-		if (!hasSafeComposedTransform(workspace)) {
-			workspace.matrices = previous;
+		const matrices = [...workspace.matrices];
+		if (!moveItemTo(matrices, id, targetId, side).changed) return;
+		if (
+			!replaceWorkspaceMatrices(workspace, matrices, canRenderWorkspace)
+				.accepted
+		)
 			return;
-		}
 		this.options.resetAnimation();
 	}
 
 	moveVector(id: string, targetId: string, side: "before" | "after"): void {
-		if (!moveItemTo(this.workspace.vectors, id, targetId, side).changed)
-			return;
+		const workspace = this.workspace;
+		const vectors = [...workspace.vectors];
+		if (!moveItemTo(vectors, id, targetId, side).changed) return;
+		if (!replaceWorkspaceVectors(workspace, vectors).accepted) return;
 		this.options.resetAnimation();
 	}
 
@@ -188,21 +219,18 @@ export class WorkspaceController {
 		const vectorId = element.dataset.vectorColumnId;
 		const id = matrixId ?? vectorId;
 		if (!id) return;
+		const workspace = this.workspace;
+		const matrices = [...workspace.matrices];
+		const vectors = [...workspace.vectors];
 		const result = matrixId
-			? moveItemBy(this.workspace.matrices, matrixId, direction)
-			: moveItemBy(this.workspace.vectors, id, direction);
+			? moveItemBy(matrices, matrixId, direction)
+			: moveItemBy(vectors, id, direction);
 		if (!result.changed) return;
-		if (matrixId && !hasSafeComposedTransform(this.workspace)) {
-			moveItemBy(
-				this.workspace.matrices,
-				matrixId,
-				-direction as MoveDirection,
-			);
-			return;
-		}
-		const items = matrixId
-			? this.workspace.matrices
-			: this.workspace.vectors;
+		const accepted = matrixId
+			? replaceWorkspaceMatrices(workspace, matrices, canRenderWorkspace)
+			: replaceWorkspaceVectors(workspace, vectors);
+		if (!accepted.accepted) return;
+		const items = matrixId ? workspace.matrices : workspace.vectors;
 		const label = items[result.index].label;
 		this.options.resetAnimation();
 
@@ -257,16 +285,14 @@ export class WorkspaceController {
 			index,
 			value,
 			`input[data-matrix-id="${CSS.escape(id)}"]`,
-			(values) => {
-				const previous = matrix.entries;
-				matrix.entries = previous.map((entry, entryIndex) => ({
-					...entry,
-					value: values[entryIndex],
-				}));
-				const renderable = hasSafeComposedTransform(this.workspace);
-				matrix.entries = previous;
-				return renderable;
-			},
+			(values) =>
+				validateMatrixValuesUpdate(
+					this.workspace,
+					id,
+					values,
+					(candidate) =>
+						canRenderMatrixUpdate(this.workspace, id, candidate),
+				),
 		);
 	}
 
@@ -288,8 +314,7 @@ export class WorkspaceController {
 
 	private updateDuration(id: string, value: number): void {
 		const matrix = this.workspace.matrices.find((item) => item.id === id);
-		if (!matrix || !Number.isFinite(value)) return;
-		matrix.durationMs = Math.max(100, Math.min(3000, value));
+		if (!matrix || !setMatrixDuration(this.workspace, id, value)) return;
 		this.options.resetAnimation(false);
 		const output = this.stack.querySelector<HTMLElement>(
 			`[data-duration-output="${CSS.escape(id)}"]`,
@@ -302,22 +327,10 @@ export class WorkspaceController {
 		index: number,
 		value: string,
 		inputSelector: string,
-		commit: (values: number[]) => boolean,
+		commit: (values: number[]) => NumericCommitResult | boolean,
 	): void {
-		const cell = cells[index];
-		if (!cell) return;
-		cell.source = value;
-		const parsed = cells.map((entry) =>
-			evaluateBoundedExpression(entry.source, MAX_ABSOLUTE_INPUT_VALUE),
-		);
-		if (
-			parsed.every((entry): entry is number => entry !== null) &&
-			commit(parsed)
-		) {
-			cells.forEach((entry, entryIndex) => {
-				entry.value = parsed[entryIndex];
-			});
-		}
+		if (!cells[index]) return;
+		const committed = updateNumericCellDraft(cells, index, value, commit);
 		this.stack
 			.querySelectorAll<HTMLInputElement>(inputSelector)
 			.forEach((input, inputIndex) => {
@@ -327,7 +340,7 @@ export class WorkspaceController {
 						getNumericCellError(cells[inputIndex]) !== null,
 				);
 			});
-		if (cells.some((entry) => getNumericCellError(entry) !== null)) return;
+		if (!committed) return;
 		this.options.resetAnimation(false);
 		this.options.updateResults();
 	}

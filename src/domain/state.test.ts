@@ -6,20 +6,33 @@ import {
 	Workspace,
 	MAX_WORKSPACE_NODES,
 	canAddWorkspaceNodes,
+	canUpdateMatrixValues,
 	createInitialState,
 	createMatrixNode,
 	createVectorNode,
+	getTransformedVectors,
+	NumericCell,
+	replaceWorkspaceMatrices,
+	replaceWorkspaceVectors,
+	setAppliedTransform,
+	setMatrixDuration,
+	updateNumericCellDraft,
+	validateMatrixValuesUpdate,
+} from "./state";
+import {
 	getAnimationDuration,
 	getAnimatedTransform,
 	getAnimationProgress,
 	getMatrixDuration,
-	hasSafeComposedTransform,
-	getRenderState,
 	getStepTransform,
-	getTransformedVectors,
-} from "./state";
+} from "./animation";
+import { getRenderState } from "./render-state";
+import {
+	canRenderMatrixUpdate,
+	canRenderWorkspace,
+} from "../rendering/capability";
 
-function workspaceWith(matrices: MatrixNode[]): Workspace {
+function workspaceWith(matrices: MatrixNode<2>[]): Workspace<2> {
 	return {
 		dimension: 2,
 		matrices,
@@ -41,6 +54,57 @@ function animation(
 }
 
 describe("workspace lifecycle", () => {
+	it("keeps valid drafts unapplied when another cell is invalid", () => {
+		const cells: NumericCell[] = [
+			{ source: "invalid", value: 1 },
+			{ source: "2", value: 1 },
+			{
+				source: "3",
+				value: 3,
+				error: "constraint-rejected",
+			},
+		];
+
+		expect(updateNumericCellDraft(cells, 1, "2", () => true)).toBe(false);
+		expect(cells).toEqual([
+			{
+				source: "invalid",
+				value: 1,
+				error: "invalid-expression",
+			},
+			{
+				source: "2",
+				value: 1,
+			},
+			{ source: "3", value: 3 },
+		]);
+	});
+
+	it("clears a stale rejection when a cell returns to its committed value", () => {
+		const cells: NumericCell[] = [
+			{
+				source: "2",
+				value: 1,
+				error: "constraint-rejected",
+			},
+			{
+				source: "2",
+				value: 1,
+				error: "constraint-rejected",
+			},
+		];
+
+		expect(updateNumericCellDraft(cells, 0, "1", () => false)).toBe(false);
+		expect(cells).toEqual([
+			{ source: "1", value: 1 },
+			{
+				source: "2",
+				value: 1,
+				error: "constraint-rejected",
+			},
+		]);
+	});
+
 	it("initializes independent identity workspaces for both dimensions", () => {
 		const state = createInitialState();
 
@@ -78,6 +142,101 @@ describe("workspace lifecycle", () => {
 		expect(canAddWorkspaceNodes(workspace, "vectors")).toBe(false);
 	});
 
+	it("rejects structural matrix updates atomically", () => {
+		const workspace = workspaceWith([createMatrixNode(2, "A")]);
+		const original = workspace.matrices;
+		const candidate = createMatrixNode(2, "B");
+
+		expect(
+			replaceWorkspaceMatrices(
+				workspace,
+				[candidate, ...workspace.matrices],
+				() => false,
+			),
+		).toEqual({
+			accepted: false,
+			error: "render-range-exceeded",
+		});
+		expect(workspace.matrices).toBe(original);
+	});
+
+	it("rejects vectors whose dimension does not match the workspace", () => {
+		const workspace = workspaceWith([]);
+		const wrongDimension = createVectorNode(3, "v1", "#ffffff");
+
+		expect(
+			replaceWorkspaceVectors(workspace, [
+				wrongDimension,
+			] as unknown as typeof workspace.vectors),
+		).toEqual({ accepted: false, error: "dimension-mismatch" });
+		expect(workspace.vectors).toEqual([]);
+	});
+
+	it("rejects out-of-range matrix and vector replacements atomically", () => {
+		const matrix = createMatrixNode(2, "A");
+		const vector = createVectorNode(2, "v1", "#ffffff");
+		const workspace = workspaceWith([matrix]);
+		workspace.vectors = [vector];
+		const originalMatrices = workspace.matrices;
+		const originalVectors = workspace.vectors;
+		const invalidMatrix = createMatrixNode(2, "B");
+		const invalidVector = createVectorNode(2, "v2", "#ffffff");
+		invalidMatrix.entries[0].value = 101;
+		invalidVector.coordinates[0].value = Number.NaN;
+
+		expect(
+			replaceWorkspaceMatrices(
+				workspace,
+				[invalidMatrix],
+				canRenderWorkspace,
+			),
+		).toEqual({ accepted: false, error: "out-of-range" });
+		expect(replaceWorkspaceVectors(workspace, [invalidVector])).toEqual({
+			accepted: false,
+			error: "out-of-range",
+		});
+		expect(workspace.matrices).toBe(originalMatrices);
+		expect(workspace.vectors).toBe(originalVectors);
+	});
+
+	it("clamps finite matrix durations and rejects non-finite updates", () => {
+		const matrix = createMatrixNode(2, "A");
+		const workspace = workspaceWith([matrix]);
+
+		expect(setMatrixDuration(workspace, matrix.id, 1)).toBe(true);
+		expect(matrix.durationMs).toBe(100);
+		expect(setMatrixDuration(workspace, matrix.id, 10_000)).toBe(true);
+		expect(matrix.durationMs).toBe(3_000);
+		expect(setMatrixDuration(workspace, matrix.id, Number.NaN)).toBe(false);
+		expect(setMatrixDuration(workspace, "missing", 500)).toBe(false);
+		expect(matrix.durationMs).toBe(3_000);
+	});
+
+	it("copies applied transforms instead of retaining the caller's array", () => {
+		const workspace = workspaceWith([]);
+		const transform: [number, number, number, number] = [2, 0, 0, 2];
+
+		setAppliedTransform(workspace, transform);
+		transform[0] = 9;
+
+		expect(workspace.appliedTransform).toEqual([2, 0, 0, 2]);
+	});
+
+	it("preserves the reason a valid matrix draft cannot be committed", () => {
+		const workspace = workspaceWith([createMatrixNode(2, "A")]);
+		const result = validateMatrixValuesUpdate(
+			workspace,
+			workspace.matrices[0].id,
+			[2, 0, 0, 2],
+			() => false,
+		);
+
+		expect(result).toEqual({
+			accepted: false,
+			error: "render-range-exceeded",
+		});
+	});
+
 	it("shows the committed transform while idle, not uncommitted matrix edits", () => {
 		const matrix = createMatrixNode(2, "A", [3, 0, 0, 3]);
 		const workspace = workspaceWith([matrix]);
@@ -97,9 +256,9 @@ describe("animation timeline", () => {
 		nonFinite.durationMs = Number.NaN;
 		const workspace = workspaceWith([zero, nonFinite]);
 
-		expect([zero, nonFinite].map(getMatrixDuration)).toEqual([1, 1]);
-		expect(getAnimationDuration(workspace, "steps")).toBe(2);
-		expect(getAnimationDuration(workspace, "composed")).toBe(1);
+		expect([zero, nonFinite].map(getMatrixDuration)).toEqual([100, 100]);
+		expect(getAnimationDuration(workspace, "steps")).toBe(200);
+		expect(getAnimationDuration(workspace, "composed")).toBe(100);
 	});
 
 	it("sums step durations and uses the longest duration for composed mode", () => {
@@ -210,7 +369,7 @@ describe("result derivation", () => {
 		vector3.coordinates.forEach((coordinate, index) => {
 			coordinate.value = [1, 2, 3][index];
 		});
-		const workspace3: Workspace = {
+		const workspace3: Workspace<3> = {
 			dimension: 3,
 			matrices: [matrix3],
 			vectors: [vector3],
@@ -225,10 +384,8 @@ describe("result derivation", () => {
 		const first = createMatrixNode(2, "A", [1e20, 0, 0, 1]);
 		const second = createMatrixNode(2, "B", [1e20, 0, 0, 1]);
 
-		expect(hasSafeComposedTransform(workspaceWith([first]))).toBe(true);
-		expect(hasSafeComposedTransform(workspaceWith([first, second]))).toBe(
-			false,
-		);
+		expect(canRenderWorkspace(workspaceWith([first]))).toBe(true);
+		expect(canRenderWorkspace(workspaceWith([first, second]))).toBe(false);
 	});
 
 	it("rejects unsafe step prefixes even when the final transform is safe", () => {
@@ -236,8 +393,29 @@ describe("result derivation", () => {
 		const first = createMatrixNode(2, "B", [1e20, 0, 0, 1]);
 		const second = createMatrixNode(2, "C", [1e20, 0, 0, 1]);
 
+		expect(canRenderWorkspace(workspaceWith([zero, first, second]))).toBe(
+			false,
+		);
+	});
+
+	it("validates a matrix update without temporarily mutating the workspace", () => {
+		const matrices = Array.from({ length: 16 }, (_, index) =>
+			createMatrixNode(2, String.fromCharCode(65 + index), [
+				index === 0 ? 1 : 100,
+				0,
+				0,
+				1,
+			]),
+		);
+		const candidate = matrices[0];
+		const workspace = workspaceWith(matrices);
+
 		expect(
-			hasSafeComposedTransform(workspaceWith([zero, first, second])),
+			canUpdateMatrixValues(workspace, candidate.id, [100, 0, 0, 1]) &&
+				canRenderMatrixUpdate(workspace, candidate.id, [100, 0, 0, 1]),
 		).toBe(false);
+		expect(candidate.entries.map(({ value }) => value)).toEqual([
+			1, 0, 0, 1,
+		]);
 	});
 });

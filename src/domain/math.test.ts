@@ -4,8 +4,8 @@ import {
 	Mat3,
 	applyMatrixToVector,
 	composeMathNotation,
-	getRealEigenbasis,
-	getRepresentativeRealEigenvector,
+	analyzeRealEigenbasis,
+	analyzeRepresentativeRealEigenvector,
 	lerpMatrix,
 	multiply2,
 	multiply3,
@@ -30,7 +30,7 @@ describe("matrix multiplication", () => {
 		const shearXByY: Mat2 = [1, 1, 0, 1];
 		const transform = composeMathNotation(2, [scaleX, shearXByY]);
 
-		expect(applyMatrixToVector(2, transform, [1, 1])).toEqual([4, 1, 0]);
+		expect(applyMatrixToVector(2, transform, [1, 1])).toEqual([4, 1]);
 	});
 });
 
@@ -61,41 +61,67 @@ describe("numeric input parsing", () => {
 
 describe("real eigensystems", () => {
 	it("returns normalized eigenvectors for distinct and repeated eigenvalues", () => {
-		expect(getRealEigenbasis(2, [2, 0, 0, 3])).toEqual([
-			[1, 0],
-			[0, 1],
-		]);
-		expect(getRealEigenbasis(3, [1, 0, 0, 0, 2, 0, 0, 0, 3])).toEqual([
-			[1, 0, 0],
-			[0, 1, 0],
-			[0, 0, 1],
-		]);
-		expect(getRealEigenbasis(3, [2, 0, 0, 0, 2, 0, 0, 0, 2])).toEqual([
-			[1, 0, 0],
-			[0, 1, 0],
-			[0, 0, 1],
-		]);
-		expect(getRealEigenbasis(3, [2, 0, 0, 0, 2, 0, 0, 0, 3])).toEqual([
-			[1, 0, 0],
-			[0, 1, 0],
-			[0, 0, 1],
-		]);
+		expect(analyzeRealEigenbasis(2, [2, 0, 0, 3])).toEqual({
+			kind: "basis",
+			vectors: [
+				[1, 0],
+				[0, 1],
+			],
+		});
+		expect(analyzeRealEigenbasis(3, [1, 0, 0, 0, 2, 0, 0, 0, 3])).toEqual({
+			kind: "basis",
+			vectors: [
+				[1, 0, 0],
+				[0, 1, 0],
+				[0, 0, 1],
+			],
+		});
+		expect(
+			analyzeRealEigenbasis(3, [2, 0, 0, 0, 2, 0, 0, 0, 2]),
+		).toMatchObject({ kind: "basis" });
+		expect(
+			analyzeRealEigenbasis(3, [2, 0, 0, 0, 2, 0, 0, 0, 3]),
+		).toMatchObject({ kind: "basis" });
+	});
+
+	it("resolves nearby eigenvalues without cancellation", () => {
+		expect(analyzeRealEigenbasis(2, [1, 0, 0, 1.0001])).toMatchObject({
+			kind: "basis",
+		});
+	});
+
+	it("does not merge distinct eigenvalues that are close together", () => {
+		expect(analyzeRealEigenbasis(2, [1, 0, 0, 1.000000001])).toMatchObject({
+			kind: "basis",
+		});
 	});
 
 	it("rejects defective and complex-spectrum full eigenbases", () => {
-		expect(getRealEigenbasis(2, [2, 1, 0, 2])).toBeNull();
-		expect(getRealEigenbasis(2, [0, -1, 1, 0])).toBeNull();
-		expect(getRealEigenbasis(3, [0, -1, 0, 1, 0, 0, 0, 0, 2])).toBeNull();
+		expect(analyzeRealEigenbasis(2, [2, 1, 0, 2])).toEqual({
+			kind: "not-diagonalizable",
+		});
+		expect(analyzeRealEigenbasis(2, [0, -1, 1, 0])).toEqual({
+			kind: "complex-eigenvalues",
+		});
+		expect(analyzeRealEigenbasis(3, [0, -1, 0, 1, 0, 0, 0, 0, 2])).toEqual({
+			kind: "complex-eigenvalues",
+		});
 	});
 
 	it("finds one real eigenvector when a full eigenbasis is unavailable", () => {
-		expect(getRepresentativeRealEigenvector(2, [2, 1, 0, 2])).toEqual([
-			1, 0,
-		]);
+		expect(analyzeRepresentativeRealEigenvector(2, [2, 1, 0, 2])).toEqual({
+			kind: "vector",
+			vector: [1, 0],
+		});
 		expect(
-			getRepresentativeRealEigenvector(3, [0, -1, 0, 1, 0, 0, 0, 0, 2]),
-		).toEqual([0, 0, 1]);
-		expect(getRepresentativeRealEigenvector(2, [0, -1, 1, 0])).toBeNull();
+			analyzeRepresentativeRealEigenvector(
+				3,
+				[0, -1, 0, 1, 0, 0, 0, 0, 2],
+			),
+		).toEqual({ kind: "vector", vector: [0, 0, 1] });
+		expect(analyzeRepresentativeRealEigenvector(2, [0, -1, 1, 0])).toEqual({
+			kind: "complex-eigenvalues",
+		});
 	});
 
 	it("does not invent an eigenbasis for near-degenerate rotations", () => {
@@ -103,13 +129,16 @@ describe("real eigensystems", () => {
 		const cosine = Math.cos(angle);
 		const sine = Math.sin(angle);
 		const rotation2: Mat2 = [cosine, -sine, sine, cosine];
-		expect(getRealEigenbasis(2, rotation2)).toBeNull();
-		expect(getRepresentativeRealEigenvector(2, rotation2)).toBeNull();
+		expect(analyzeRealEigenbasis(2, rotation2).kind).not.toBe("basis");
+		expect(
+			analyzeRepresentativeRealEigenvector(2, rotation2).kind,
+		).not.toBe("vector");
 
 		const rotation3: Mat3 = [cosine, -sine, 0, sine, cosine, 0, 0, 0, 1];
-		expect(getRealEigenbasis(3, rotation3)).toBeNull();
-		expect(getRepresentativeRealEigenvector(3, rotation3)).toEqual([
-			0, 0, 1,
-		]);
+		expect(analyzeRealEigenbasis(3, rotation3).kind).not.toBe("basis");
+		expect(analyzeRepresentativeRealEigenvector(3, rotation3)).toEqual({
+			kind: "vector",
+			vector: [0, 0, 1],
+		});
 	});
 });

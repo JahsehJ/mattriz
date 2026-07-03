@@ -4,16 +4,17 @@ import {
 	Dimension,
 	Mat2,
 	Mat3,
+	type MatrixFor,
 	MatrixValues,
 	Vec3,
 	applyMatrixToVector,
 } from "../domain/math";
-import {
-	type RenderState,
-	type VectorNode,
-	getVectorValues,
-} from "../domain/state";
-import type { CameraSnapshot, CameraSnapshots } from "../domain/share";
+import { type VectorNode, getVectorValues } from "../domain/state";
+import type { RenderState } from "../domain/render-state";
+import type {
+	CameraSnapshot,
+	CameraSnapshots,
+} from "../infrastructure/session-codec";
 
 const GRID_EXTENT = 240;
 const GRID_STEP = 1;
@@ -219,7 +220,7 @@ export class MatrixScene {
 		);
 	}
 
-	render(state: RenderState): boolean {
+	render<D extends Dimension>(state: RenderState<D>): boolean {
 		if (this.disposed) return false;
 		const resized = this.resize();
 		this.dimension = state.dimension;
@@ -383,10 +384,10 @@ export class MatrixScene {
 		});
 	}
 
-	private updateVectors(
-		dimension: Dimension,
-		matrix: MatrixValues,
-		vectors: VectorNode[],
+	private updateVectors<D extends Dimension>(
+		dimension: D,
+		matrix: MatrixFor<D>,
+		vectors: VectorNode<D>[],
 	): void {
 		const activeIds = new Set(vectors.map((vector) => vector.id));
 		for (const [id, visual] of this.vectorVisuals) {
@@ -403,6 +404,10 @@ export class MatrixScene {
 				matrix,
 				getVectorValues(vector),
 			);
+			const renderVector: Vec3 =
+				dimension === 2
+					? [transformed[0], transformed[1], 0]
+					: (transformed as Vec3);
 			let visual = this.vectorVisuals.get(vector.id);
 			if (!visual) {
 				const color = new THREE.Color(vector.color).getHex();
@@ -430,14 +435,14 @@ export class MatrixScene {
 
 			this.updateArrow(
 				visual.arrow,
-				transformed,
+				renderVector,
 				dimension,
 				USER_ARROW_Z,
 			);
 			this.updateDirectionLabel(
 				visual.label,
 				dimension,
-				transformed,
+				renderVector,
 				USER_ARROW_Z,
 			);
 		});
@@ -518,11 +523,14 @@ function transformPoint(
 	matrix: MatrixValues,
 	point: Vec3,
 ): Vec3 {
-	return applyMatrixToVector(
+	const transformed = applyMatrixToVector(
 		dimension,
 		matrix,
 		dimension === 2 ? [point[0], point[1]] : point,
 	);
+	return dimension === 2
+		? [transformed[0], transformed[1], 0]
+		: (transformed as Vec3);
 }
 
 function toThree(point: Vec3): THREE.Vector3 {

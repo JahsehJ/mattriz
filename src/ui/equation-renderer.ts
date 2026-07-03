@@ -1,11 +1,11 @@
 import {
 	canAddWorkspaceNodes,
 	getTotalTransform,
-	type Workspace,
+	type AnyWorkspace,
 } from "../domain/state";
 import {
-	getRealEigenbasis,
-	getRepresentativeRealEigenvector,
+	analyzeRealEigenbasis,
+	analyzeRepresentativeRealEigenvector,
 } from "../domain/math";
 import { type MatrixPreset, getMatrixPresets } from "../domain/presets";
 import type { Translate } from "../i18n";
@@ -19,7 +19,7 @@ import { escapeHtml, renderVectorSymbol } from "./rendering";
 interface EquationRendererOptions {
 	root: HTMLElement;
 	t: Translate;
-	getWorkspace(): Workspace;
+	getWorkspace(): AnyWorkspace;
 	maxInputLength: number;
 }
 
@@ -174,20 +174,22 @@ export class EquationRenderer {
 	} {
 		const workspace = this.options.getWorkspace();
 		const transform = getTotalTransform(workspace);
-		const basis = getRealEigenbasis(workspace.dimension, transform);
+		const basis = analyzeRealEigenbasis(workspace.dimension, transform);
+		const representative = analyzeRepresentativeRealEigenvector(
+			workspace.dimension,
+			transform,
+		);
 		const vectorCapacity = canAddWorkspaceNodes(workspace, "vectors");
 		return {
 			basisAvailable: Boolean(
-				basis &&
-				canAddWorkspaceNodes(workspace, "vectors", basis.length),
+				basis.kind === "basis" &&
+				canAddWorkspaceNodes(
+					workspace,
+					"vectors",
+					basis.vectors.length,
+				),
 			),
-			vectorAvailable:
-				Boolean(
-					getRepresentativeRealEigenvector(
-						workspace.dimension,
-						transform,
-					),
-				) && vectorCapacity,
+			vectorAvailable: representative.kind === "vector" && vectorCapacity,
 		};
 	}
 

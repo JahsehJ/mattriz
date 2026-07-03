@@ -1,17 +1,19 @@
 import { evaluateExpression } from "./expression";
-import { Dimension, MatrixValues } from "./math";
+import { Dimension, MatrixFor } from "./math";
 
-export interface MatrixPreset {
+export interface MatrixPreset<D extends Dimension = Dimension> {
 	id: string;
 	kind: "reflection" | "rotation";
 	axis: string;
 	angle?: 45;
 	draftValues: string[];
-	values: MatrixValues;
+	values: MatrixFor<D>;
 }
 
-export function getMatrixPresets(dimension: Dimension): MatrixPreset[] {
-	const definitions: PresetDefinition[] =
+export function getMatrixPresets<D extends Dimension>(
+	dimension: D,
+): MatrixPreset<D>[] {
+	const definitions: PresetDefinition<D>[] =
 		dimension === 2
 			? [
 					{
@@ -147,8 +149,8 @@ export function getMatrixPresets(dimension: Dimension): MatrixPreset[] {
 			if (evaluated === null)
 				throw new Error(`Invalid preset value: ${value}`);
 			return evaluated;
-		}) as MatrixValues,
+		}) as MatrixFor<D>,
 	}));
 }
 
-type PresetDefinition = Omit<MatrixPreset, "values">;
+type PresetDefinition<D extends Dimension> = Omit<MatrixPreset<D>, "values">;

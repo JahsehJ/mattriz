@@ -21,6 +21,11 @@ export default defineConfig(({ command, mode }) => {
 
 	return {
 		base: "./",
+		server: {
+			watch: {
+				ignored: ["**/coverage/**"],
+			},
+		},
 		build: {
 			emptyOutDir: env.BUILD_OUT_DIR ? false : undefined,
 			outDir: env.BUILD_OUT_DIR,

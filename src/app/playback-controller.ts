@@ -1,5 +1,9 @@
 import { identityMatrix } from "../domain/math";
-import { type AppState, getWorkspace } from "../domain/state";
+import {
+	type AppState,
+	getWorkspace,
+	setAppliedTransform,
+} from "../domain/state";
 
 interface PlaybackControllerOptions {
 	getState(): AppState;
@@ -38,9 +42,8 @@ export class PlaybackController {
 
 	resetTransform(): void {
 		const state = this.options.getState();
-		getWorkspace(state).appliedTransform = identityMatrix(
-			state.activeDimension,
-		);
+		const workspace = getWorkspace(state);
+		setAppliedTransform(workspace, identityMatrix(workspace.dimension));
 		this.reset(false);
 	}
 

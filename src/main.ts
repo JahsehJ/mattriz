@@ -4,17 +4,19 @@ import { MatrixScene } from "./ui/scene";
 import {
 	AppState,
 	createInitialState,
-	getAnimationElapsed,
-	getAnimationDuration,
-	getRenderState,
 	getTotalTransform,
 	getWorkspace,
+	setAppliedTransform,
 } from "./domain/state";
+import { getAnimationDuration, getAnimationElapsed } from "./domain/animation";
+import { getRenderState } from "./domain/render-state";
 import { Dimension } from "./domain/math";
 import { Locale, MessageKey, translate } from "./i18n";
 import { getLocaleFromLanguageTag } from "./app/locale-routing";
 import { registerAppServiceWorker } from "./app/service-worker-registration";
-import { decodeShareSession } from "./domain/share";
+import { decodeShareSession } from "./infrastructure/session-codec";
+import { canRenderWorkspace } from "./rendering/capability";
+import { restoreSessionSnapshot } from "./app/session-snapshot";
 import { WorkspaceController } from "./app/workspace-controller";
 import { ShareController } from "./app/share-controller";
 import { PlaybackController } from "./app/playback-controller";
@@ -342,7 +344,7 @@ function renderFrame(now: number): void {
 		getAnimationElapsed(state.animation, now) >=
 			getAnimationDuration(workspace, state.animation.mode)
 	) {
-		workspace.appliedTransform = getTotalTransform(workspace);
+		setAppliedTransform(workspace, getTotalTransform(workspace));
 		state.animation.status = "idle";
 		uiController.render(false);
 	}
@@ -358,7 +360,12 @@ async function initialize(): Promise<void> {
 	if (hash.startsWith("#s=")) {
 		try {
 			const restored = await decodeShareSession(hash.slice(3));
-			state = restored.state;
+			state = restoreSessionSnapshot(restored);
+			if (
+				!canRenderWorkspace(state.workspaces[2]) ||
+				!canRenderWorkspace(state.workspaces[3])
+			)
+				throw new Error("Session exceeds rendering capabilities");
 			if (state.animation.status === "paused") {
 				const now = performance.now();
 				state.animation.startedAt = now - restored.elapsedMs;

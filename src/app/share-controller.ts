@@ -9,8 +9,10 @@ import {
 	MAX_SHARE_FRAGMENT_LENGTH,
 	encodeShareSession,
 	type CameraSnapshots,
-} from "../domain/share";
-import { getAnimationElapsed, type AppState } from "../domain/state";
+} from "../infrastructure/session-codec";
+import type { AppState } from "../domain/state";
+import { getAnimationElapsed } from "../domain/animation";
+import { captureSessionSnapshot } from "./session-snapshot";
 
 interface ShareControllerOptions {
 	root: HTMLElement;
@@ -85,11 +87,9 @@ export class ShareController {
 			state.animation.status === "idle"
 				? 0
 				: getAnimationElapsed(state.animation, performance.now());
-		return encodeShareSession({
-			state,
-			elapsedMs,
-			cameras: this.options.getCameras(),
-		});
+		return encodeShareSession(
+			captureSessionSnapshot(state, elapsedMs, this.options.getCameras()),
+		);
 	}
 
 	private assertUrlFits(url: string): void {
